@@ -58,6 +58,14 @@ See [PUSH_TO_GITHUB.md](PUSH_TO_GITHUB.md) for the repository description, commi
 
 Publish `dist/` at a domain root on a static host after `npm run build`. The app needs no environment secrets or processing backend. `_headers` is provided for compatible hosts, and a Content Security Policy is also included in the HTML. Apply equivalent response headers if your host ignores `_headers`. The local server is a development preview, not a public production server. GitHub Pages project-subdirectory hosting needs asset-base configuration before use.
 
+### Netlify
+
+Connect the repository and deploy branch `main`. The root `netlify.toml` configures Node.js 24, the build command `npm run build && npm run check:build`, and publish directory `dist`. Leave the base directory and package directory unset when this repository's `package.json` is at the root.
+
+If a deployment shows only “Skip to content”, check `/assets/main.js` and `/assets/main.css`: missing files mean the source folder was published instead of the compiled app. Push the Netlify configuration and trigger a new deploy. The build check fails deployment if required assets are missing.
+
+For a manual deploy, run `npm ci`, `npm run build`, and `npm run check:build`, then upload only the generated `dist` folder. Uploading the source repository does not run its build.
+
 Read [SECURITY.md](SECURITY.md) for the privacy model and boundaries, and [CONTRIBUTING.md](CONTRIBUTING.md) for change and verification guidance.
 
 ## Source map

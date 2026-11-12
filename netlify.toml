@@ -1,0 +1,7 @@
+# Deploy the compiled app, not the source directory.
+[build]
+  command = "npm run build && npm run check:build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "24"
