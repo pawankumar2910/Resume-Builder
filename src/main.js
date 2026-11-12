@@ -1,163 +1,938 @@
 import './styles.css';
-import { templates, getTemplate, config, freshResume, sampleResume, entry, chooseTemplate, defaultHeadings, defaultOrder, certificateKey, escapeHtml as e } from './model.js';
+import {
+  templates,
+  getTemplate,
+  config,
+  freshResume,
+  sampleResume,
+  entry,
+  chooseTemplate,
+  defaultHeadings,
+  defaultOrder,
+  certificateKey,
+  escapeHtml as e,
+} from './model.js';
 import { resumeHtml } from './resume.js';
 import { analyzeText } from './rules.js';
-const $ = s => document.querySelector(s);
+import { validateResume, serializeBackup, parseBackup, MAX_BACKUP_BYTES } from './draft.js';
+const $ = (s) => document.querySelector(s);
 const icons = {
- arrow: '<path d="M4 12h15m-6-6 6 6-6 6"/>', chevron: '<path d="m9 5 7 7-7 7"/>', back: '<path d="M20 12H5m6-6-6 6 6 6"/>', check: '<path d="m5 12 4 4L19 6"/>', plus: '<path d="M12 5v14M5 12h14"/>', close: '<path d="m6 6 12 12M6 18 18 6"/>', file: '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5M8 12h8m-8 4h6"/>', upload: '<path d="M12 16V3m-5 5 5-5 5 5M4 16v4h16v-4"/>', download: '<path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4"/>', shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/>', edit: '<path d="m15 4 5 5-11 11H4v-5zM12 7l5 5"/>', grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>', search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>', trash: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>', up: '<path d="m6 14 6-6 6 6"/>', down: '<path d="m6 10 6 6 6-6"/>', image: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 17 6-6 4 4 3-3 5 5"/>', palette: '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="9" r="1"/><circle cx="13" cy="7" r="1"/><circle cx="17" cy="11" r="1"/><path d="M12 21c-4-5 5-4 2-7"/>', eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', lock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>', undo: '<path d="M4 10h10a6 6 0 0 1 0 12M4 10l5-5m-5 5 5 5"/>', sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/>'
+  arrow: '<path d="M4 12h15m-6-6 6 6-6 6"/>',
+  chevron: '<path d="m9 5 7 7-7 7"/>',
+  back: '<path d="M20 12H5m6-6-6 6 6 6"/>',
+  check: '<path d="m5 12 4 4L19 6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  close: '<path d="m6 6 12 12M6 18 18 6"/>',
+  file: '<path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8zM14 3v5h5M8 12h8m-8 4h6"/>',
+  upload: '<path d="M12 16V3m-5 5 5-5 5 5M4 16v4h16v-4"/>',
+  download: '<path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4"/>',
+  shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/>',
+  edit: '<path d="m15 4 5 5-11 11H4v-5zM12 7l5 5"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
+  trash: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/>',
+  up: '<path d="m6 14 6-6 6 6"/>',
+  down: '<path d="m6 10 6 6 6-6"/>',
+  image:
+    '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 17 6-6 4 4 3-3 5 5"/>',
+  palette:
+    '<circle cx="12" cy="12" r="9"/><circle cx="8" cy="9" r="1"/><circle cx="13" cy="7" r="1"/><circle cx="17" cy="11" r="1"/><path d="M12 21c-4-5 5-4 2-7"/>',
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  lock: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+  undo: '<path d="M4 10h10a6 6 0 0 1 0 12M4 10l5-5m-5 5 5 5"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1 1m12 12 1 1M5 19l1-1M18 6l1-1"/>',
 };
-const icon = (name, cls = '') => `<svg class="icon ${cls}" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.file}</svg>`;
+const icon = (name, cls = '') =>
+  `<svg class="icon ${cls}" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.file}</svg>`;
 const storageKey = 'folio-resume-v1';
-let resume = freshResume(), saved = false, storageError = false;
-try { const raw = JSON.parse(localStorage.getItem(storageKey)); if (raw?.personal && raw?.style && raw?.order && raw?.headings) { resume = { ...freshResume(), ...raw }; saved = true; } } catch { storageError = true; }
-let page = ['templates', 'details', 'documents', 'editor'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
-let category = 'All templates', search = '', photoFilter = false, activeSection = 'personal', activeTab = 'content', reviews = [], busy = false, busyMessage = '', undoStack = [], exportBusy = false, previewUrl = '';
+let resume = freshResume(),
+  saved = false,
+  storageError = false;
+let lastStored = null,
+  storageConflict = false,
+  dirty = false,
+  pendingImport = null,
+  uploadController = null;
+try {
+  lastStored = localStorage.getItem(storageKey);
+  if (lastStored) {
+    resume = validateResume(JSON.parse(lastStored));
+    saved = true;
+  }
+} catch {
+  storageError = true;
+}
+let page = ['templates', 'details', 'documents', 'editor'].includes(location.hash.slice(1))
+  ? location.hash.slice(1)
+  : 'home';
+let category = 'All templates',
+  search = '',
+  photoFilter = false,
+  activeSection = 'personal',
+  activeTab = 'content',
+  reviews = [],
+  busy = false,
+  busyMessage = '',
+  undoStack = [],
+  exportBusy = false,
+  previewUrl = '';
 const demo = sampleResume();
 let saveTimer;
-function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { try { localStorage.setItem(storageKey, JSON.stringify(resume)); saved = true; storageError = false; } catch { storageError = true; toast('Storage is full or unavailable. Keep this tab open and download your resume.'); } const label = $('#save-label'); if (label) label.textContent = storageError ? 'Not saved to this device' : 'Saved to this device'; }, 250); }
-function snapshot() { undoStack.push(JSON.stringify(resume)); if (undoStack.length > 35) undoStack.shift(); }
-function toast(text) { const t = $('#toast'); t.textContent = text; t.classList.add('visible'); clearTimeout(t.timeout); t.timeout = setTimeout(() => t.classList.remove('visible'), 4500); }
-function navigate(next) { page = next; history.pushState({}, '', next === 'home' ? location.pathname : '#' + next); render(); window.scrollTo({ top: 0, behavior: 'instant' }); }
-window.addEventListener('popstate', () => { page = ['templates','details','documents','editor'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home'; render(); });
-const btn = (text, action, cls = 'primary', extra = '', symbol = '') => `<button class="button ${cls}" data-action="${action}" ${extra}>${text}${symbol ? icon(symbol) : ''}</button>`;
-const brand = `<button class="brand" data-action="home" aria-label="Folio home"><span class="brand-symbol">f.</span>folio<span class="brand-dot">®</span></button>`;
-function header() { return `<header class="site-header"><div class="nav-inner">${brand}<nav aria-label="Main navigation"><button data-action="templates">Templates</button><button data-action="how">How it works</button><button data-action="privacy">Made for you</button></nav><div class="nav-end">${saved ? '<button class="text-button resume-link" data-action="editor">My resume</button>' : ''}${btn('Create my resume', 'templates', 'small primary', '', 'arrow')}</div></div></header>`; }
-function steps(current) { return `<nav class="steps" aria-label="Resume progress">${[['templates','Template'],['details','Your details'],['documents','Certificates'],['editor','Editor']].map(([k,v],i) => `<button data-action="${k}" class="${k === current ? 'current' : ''}" ${k === current ? 'aria-current="step"' : ''}><span>${['templates','details','documents','editor'].indexOf(current) > i ? icon('check') : i+1}</span>${v}</button>${i < 3 ? '<i></i>' : ''}`).join('')}</nav>`; }
-function miniature(t, custom = demo) { return `<div class="mini-frame" aria-hidden="true">${resumeHtml({ ...custom, template: t.id, style: { ...custom.style, accent: '', font: 'template' } }, { miniature: true })}</div>`; }
+function flushSave() {
+  if (!dirty) return;
+  try {
+    if (storageConflict || localStorage.getItem(storageKey) !== lastStored) {
+      storageConflict = true;
+      updateSaveLabel();
+      return;
+    }
+    const next = JSON.stringify(resume);
+    localStorage.setItem(storageKey, next);
+    lastStored = next;
+    saved = true;
+    dirty = false;
+    storageError = false;
+  } catch {
+    storageError = true;
+    toast('This draft could not be saved. Download a backup from Sections to keep your work.');
+  }
+  updateSaveLabel();
+}
+function updateSaveLabel() {
+  const label = $('#save-label');
+  if (label)
+    label.textContent = storageConflict
+      ? 'Changed in another tab · open Sections'
+      : storageError
+        ? 'Not saved · download a backup'
+        : dirty
+          ? 'Saving…'
+          : saved
+            ? 'Saved to this device'
+            : 'New draft';
+}
+function persist() {
+  dirty = true;
+  updateSaveLabel();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flushSave, 250);
+}
+function snapshot() {
+  undoStack.push(JSON.stringify(resume));
+  if (undoStack.length > 35) undoStack.shift();
+}
+function toast(text) {
+  const t = $('#toast');
+  t.textContent = text;
+  t.classList.add('visible');
+  clearTimeout(t.timeout);
+  t.timeout = setTimeout(() => t.classList.remove('visible'), 4500);
+}
+function navigate(next) {
+  page = next;
+  history.pushState({}, '', next === 'home' ? location.pathname : '#' + next);
+  render();
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  $('#main')?.focus({ preventScroll: true });
+}
+window.addEventListener('popstate', () => {
+  page = ['templates', 'details', 'documents', 'editor'].includes(location.hash.slice(1))
+    ? location.hash.slice(1)
+    : 'home';
+  render();
+});
+const btn = (text, action, cls = 'primary', extra = '', symbol = '') =>
+  `<button class="button ${cls}" data-action="${action}" ${extra}>${text}${symbol ? icon(symbol) : ''}</button>`;
+const brand = `<button class="brand" data-action="home" aria-label="Folio home"><span class="brand-symbol">f.</span>folio</button>`;
+function header() {
+  return `<header class="site-header"><div class="nav-inner">${brand}<nav aria-label="Main navigation"><button data-action="templates">Templates</button><button data-action="how">How it works</button><button data-action="privacy">Made for you</button></nav><div class="nav-end">${saved ? '<button class="text-button resume-link" data-action="editor">My resume</button>' : ''}${btn('Create my resume', 'templates', 'small primary', '', 'arrow')}</div></div></header>`;
+}
+function steps(current) {
+  return `<nav class="steps" aria-label="Resume progress">${[
+    ['templates', 'Template'],
+    ['details', 'Your details'],
+    ['documents', 'Certificates'],
+    ['editor', 'Editor'],
+  ]
+    .map(
+      ([k, v], i) =>
+        `<button data-action="${k}" class="${k === current ? 'current' : ''}" ${k === current ? 'aria-current="step"' : ''}><span>${['templates', 'details', 'documents', 'editor'].indexOf(current) > i ? icon('check') : i + 1}</span>${v}</button>${i < 3 ? '<i></i>' : ''}`,
+    )
+    .join('')}</nav>`;
+}
+function miniature(t, custom = demo) {
+  return `<div class="mini-frame" aria-hidden="true">${resumeHtml({ ...custom, template: t.id, style: { ...custom.style, accent: '', font: 'template' } }, { miniature: true })}</div>`;
+}
 function home() {
   return `${header()}<main id="main">
-    <section class="hero"><div class="eyebrow"><span class="live-dot"></span> A LITTLE CLARITY. A NEW CHAPTER.</div><h1>Your experience.<br><span>Beautifully presented.</span></h1><p>A resume that feels like you. Thoughtful templates, your achievements,<br class="desktop"> and all the freedom to make it your own.</p><div class="hero-actions">${btn('Create my resume', 'templates', 'primary large', '', 'arrow')}<button class="text-button" data-action="explore">Explore the templates ${icon('chevron')}</button></div><div class="hero-note">No account needed<span>·</span>Private by design<span>·</span>Yours to keep</div>
+    <section class="hero"><div class="eyebrow"><span class="live-dot"></span> A LITTLE CLARITY. A NEW CHAPTER.</div><h1>Your experience.<br><span>Beautifully presented.</span></h1><p>A resume that feels like you. Thoughtful templates, your achievements,<br class="desktop"> and all the freedom to make it your own.</p><div class="hero-actions">${btn('Create my resume', 'templates', 'primary large', '', 'arrow')}<button class="text-button" data-action="explore">Explore the templates ${icon('chevron')}</button></div><div class="hero-note">No resume account<span>·</span>Private by design<span>·</span>Yours to keep</div>
       <div class="showcase"><div class="showcase-note note-left"><span class="small-star">✳</span><span>Your story.<br>A considered first impression.</span></div><div class="showcase-paper paper-left">${miniature(getTemplate('editorial-2'))}<div class="paper-tag">Editorial <span>01</span></div></div><div class="showcase-paper paper-center">${miniature(getTemplate('essential-0'))}<div class="paper-tag">Essential <span>THE QUIET CLASSIC</span></div></div><div class="showcase-paper paper-right">${miniature(getTemplate('column-1'))}<div class="paper-tag">Column <span>03</span></div></div><div class="showcase-note note-right">${icon('edit')}<span>Every detail.<br>Entirely yours.</span></div><div class="floating-pill">${icon('check')} Designed to let you stand out.</div></div>
     </section>
     <div class="benefit-strip"><span>${icon('grid')}60 considered templates</span><span>${icon('file')}PDF & Word downloads</span><span>${icon('shield')}Your files stay on your device</span><span>${icon('edit')}Editable, down to the last word</span></div>
-    <section class="section curated" id="collection"><div class="section-heading"><div><div class="eyebrow">THE COLLECTION</div><h2>A good beginning.</h2><p>Find the right frame for your next chapter.</p></div><button class="text-button" data-action="templates">Explore all 60 templates ${icon('arrow')}</button></div><div class="featured-grid">${['essential-0','editorial-2','column-1'].map(id => { const t = getTemplate(id); return `<button class="template-card featured-card" data-action="select-template" data-id="${id}"><div class="template-art">${miniature(t)}<span class="template-use">Make it yours ${icon('arrow')}</span></div><div class="template-meta"><div><h3>${t.name}</h3><p>${t.category} · ${t.columns ? 'Two columns' : 'One column'}</p></div><span class="color-dot" style="background:${t.accent}"></span></div></button>`; }).join('')}</div></section>
-    <section class="how-section section" id="how"><div class="eyebrow">FROM A BLANK PAGE TO WHAT’S NEXT</div><h2>Less formatting.<br>More possibility.</h2><div class="how-grid">${[['01','Find your fit.','Choose a template that suits your experience. Refine the typography, color, and spacing.','grid'],['02','Bring your story.','Add your details and upload certificates. Review the extracted facts, then add what matters.','upload'],['03','Make your move.','Polish every word in the editor. Download your resume as a PDF or an editable Word document.','download']].map(([n,title,body,ic]) => `<div><div class="how-top">${icon(ic)}<span>${n}</span></div><h3>${title}</h3><p>${body}</p></div>`).join('')}</div></section>
+    <section class="section curated" id="collection"><div class="section-heading"><div><div class="eyebrow">THE COLLECTION</div><h2>A good beginning.</h2><p>Find the right frame for your next chapter.</p></div><button class="text-button" data-action="templates">Explore all 60 templates ${icon('arrow')}</button></div><div class="featured-grid">${[
+      'essential-0',
+      'editorial-2',
+      'column-1',
+    ]
+      .map((id) => {
+        const t = getTemplate(id);
+        return `<button class="template-card featured-card" data-action="select-template" data-id="${id}"><div class="template-art">${miniature(t)}<span class="template-use">Make it yours ${icon('arrow')}</span></div><div class="template-meta"><div><h3>${t.name}</h3><p>${t.category} · ${t.columns ? 'Two columns' : 'One column'}</p></div><span class="color-dot" style="background:${t.accent}"></span></div></button>`;
+      })
+      .join('')}</div></section>
+    <section class="how-section section" id="how"><div class="eyebrow">FROM A BLANK PAGE TO WHAT’S NEXT</div><h2>Less formatting.<br>More possibility.</h2><div class="how-grid">${[
+      [
+        '01',
+        'Find your fit.',
+        'Choose a template that suits your experience. Refine the typography, color, and spacing.',
+        'grid',
+      ],
+      [
+        '02',
+        'Bring your story.',
+        'Add your details and upload certificates. Review the extracted facts, then add what matters.',
+        'upload',
+      ],
+      [
+        '03',
+        'Make your move.',
+        'Polish every word in the editor. Download your resume as a PDF or an editable Word document.',
+        'download',
+      ],
+    ]
+      .map(
+        ([n, title, body, ic]) =>
+          `<div><div class="how-top">${icon(ic)}<span>${n}</span></div><h3>${title}</h3><p>${body}</p></div>`,
+      )
+      .join('')}</div></section>
     <section class="privacy-section section" id="privacy"><div class="privacy-mark">${icon('shield')}</div><div><div class="eyebrow">PERSONAL MEANS PERSONAL</div><h2>Your career. Your data.</h2><p>Your documents are processed right in your browser. No AI models. No document uploads to a server. Your draft stays on this device, and you decide what makes the final cut.</p><button class="text-button" data-action="privacy-info">A closer look at privacy ${icon('arrow')}</button></div></section>
     <section class="closing section"><p>A small step toward something bigger.</p><h2>Let’s tell your story.</h2>${btn('Create my resume', 'templates', 'primary large', '', 'arrow')}</section>
   </main><footer><div>${brand}<span>A thoughtful start to what’s next.</span></div><div><button data-action="privacy-info">Privacy</button><span>Made with intention.</span></div></footer>`;
 }
 function galleryCards() {
-  const filtered = templates.filter(t => (category === 'All templates' || t.category === category) && (!photoFilter || t.photo) && `${t.name} ${t.category} ${t.description}`.toLowerCase().includes(search.toLowerCase()));
-  return `<div class="gallery-count">${filtered.length} templates <span>12 layouts · 5 considered palettes · every detail customizable</span></div><div class="template-grid">${filtered.map(t => `<button class="template-card" data-action="select-template" data-id="${t.id}" aria-label="Choose ${t.name} template"><div class="template-art">${miniature(t)}${t.photo ? `<span class="photo-badge">${icon('image')} Photo ready</span>` : ''}${resume.template === t.id ? '<span class="selected-badge">Selected</span>' : ''}<span class="template-use">Use this template ${icon('arrow')}</span></div><div class="template-meta"><div><h3>${t.name}</h3><p>${t.category} · ${t.columns ? 'Two columns' : 'One column'}</p></div><span class="color-dot" style="background:${t.accent}"></span></div></button>`).join('')}</div>${!filtered.length ? '<div class="empty-state">No templates match. Try a different name or filter.</div>' : ''}`;
+  const filtered = [...templates]
+    .sort((a, b) => Number(a.id.split('-').at(-1)) - Number(b.id.split('-').at(-1)))
+    .filter(
+      (t) =>
+        (category === 'All templates' || t.category === category) &&
+        (!photoFilter || t.photo) &&
+        `${t.name} ${t.category} ${t.description}`.toLowerCase().includes(search.toLowerCase()),
+    );
+  return `<div class="gallery-count">${filtered.length} templates <span>12 layouts · 5 considered palettes · every detail customizable</span></div><div class="template-grid">${filtered.map((t) => `<button class="template-card" data-action="select-template" data-id="${t.id}" aria-label="Choose ${t.name} template"><div class="template-art">${miniature(t)}${t.photo ? `<span class="photo-badge">${icon('image')} Photo ready</span>` : ''}${resume.template === t.id ? '<span class="selected-badge">Selected</span>' : ''}<span class="template-use">Use this template ${icon('arrow')}</span></div><div class="template-meta"><div><h3>${t.name}</h3><p>${t.category} · ${t.columns ? 'Two columns' : 'One column'}</p></div><span class="color-dot" style="background:${t.accent}"></span></div></button>`).join('')}</div>${!filtered.length ? '<div class="empty-state">No templates match. Try a different name or filter.</div>' : ''}`;
 }
-function gallery() { return `${header()}<main id="main" class="gallery-page">${steps('templates')}<div class="page-intro"><div class="eyebrow">01 / A FRAME FOR YOUR STORY</div><h1>Start with something beautiful.</h1><p>60 templates. Endless ways to make them yours.</p></div><div class="gallery-tools"><div class="filter-tabs" aria-label="Template categories">${['All templates','Minimal','Professional','Creative','Academic'].map(c => `<button data-action="category" data-id="${c}" class="${c === category ? 'active' : ''}" aria-pressed="${c === category}">${c}</button>`).join('')}</div><div class="gallery-search">${icon('search')}<input type="search" id="template-search" aria-label="Search templates" placeholder="Find your style" value="${e(search)}"></div></div><label class="check-label photo-filter"><input type="checkbox" id="photo-filter" ${photoFilter ? 'checked' : ''}> Show photo-ready presets</label><div id="gallery-results">${galleryCards()}</div></main>`; }
-function field(label, path, value, { area = false, type = 'text', placeholder = '', full = false, hint = '', rows = 4 } = {}) {
+function gallery() {
+  return `${header()}<main id="main" class="gallery-page">${steps('templates')}<div class="page-intro"><div class="eyebrow">01 / A FRAME FOR YOUR STORY</div><h1>Start with something beautiful.</h1><p>60 templates. Endless ways to make them yours.</p></div><div class="gallery-tools"><div class="filter-tabs" aria-label="Template categories">${['All templates', 'Minimal', 'Professional', 'Creative', 'Academic'].map((c) => `<button data-action="category" data-id="${c}" class="${c === category ? 'active' : ''}" aria-pressed="${c === category}">${c}</button>`).join('')}</div><div class="gallery-search">${icon('search')}<input type="search" id="template-search" aria-label="Search templates" placeholder="Find your style" value="${e(search)}"></div></div><label class="check-label photo-filter"><input type="checkbox" id="photo-filter" ${photoFilter ? 'checked' : ''}> Show photo-ready presets</label><div id="gallery-results">${galleryCards()}</div></main>`;
+}
+function field(
+  label,
+  path,
+  value,
+  { area = false, type = 'text', placeholder = '', full = false, hint = '', rows = 4 } = {},
+) {
   const id = 'field-' + path.replace(/[^\w]/g, '-');
   return `<div class="field ${full ? 'full' : ''}"><label for="${id}">${e(label)}</label>${area ? `<textarea id="${id}" data-path="${path}" rows="${rows}" placeholder="${e(placeholder)}">${e(value)}</textarea>` : `<input id="${id}" data-path="${path}" type="${type}" value="${e(value)}" placeholder="${e(placeholder)}" ${type === 'email' ? 'autocomplete="email"' : ''}>`}${hint ? `<small>${hint}</small>` : ''}</div>`;
 }
-function personalForm() { const p = resume.personal; return `<div class="photo-control">${p.photo ? `<img src="${p.photo}" alt="Your profile photo">` : `<div class="photo-placeholder">${icon('image')}</div>`}<div><label class="button secondary small upload-photo-label">${p.photo ? 'Change photo' : 'Add a photo'}<input type="file" id="photo-upload" accept="image/png,image/jpeg,image/webp" class="visually-hidden"></label><p>Optional · JPG, PNG, WebP · up to 8 MB</p></div>${p.photo ? `<button class="icon-button" data-action="remove-photo" aria-label="Remove photo">${icon('trash')}</button>` : ''}</div><div class="form-grid">${field('Full name', 'personal.name', p.name, { placeholder: 'e.g. Alex Morgan' })}${field('Professional title', 'personal.title', p.title, { placeholder: 'e.g. Product Designer' })}${field('Email address', 'personal.email', p.email, { type: 'email', placeholder: 'you@example.com' })}${field('Phone number', 'personal.phone', p.phone, { type: 'tel', placeholder: '+91 98765 43210' })}${field('Location', 'personal.location', p.location, { placeholder: 'City, country' })}${field('Website or portfolio', 'personal.website', p.website, { placeholder: 'yourwebsite.com' })}</div>`; }
-function details() { return `${header()}<main id="main" class="flow-page">${steps('details')}<div class="details-layout"><section class="form-card"><div class="eyebrow">02 / THE INTRODUCTION</div><h1>Let’s start with you.</h1><p class="muted">A few details to make this page your own.</p>${personalForm()}${field('A little about you', 'summary', resume.summary, { area: true, placeholder: 'What you do, what you bring, and where you want to go.', hint: 'Use your own words. You can refine this in the editor.' })}<div class="flow-actions"><button class="text-button" data-action="templates">${icon('back')} Templates</button>${btn('Continue to certificates', 'documents', 'primary', '', 'arrow')}</div></section><aside class="details-preview"><div class="preview-caption"><span>${getTemplate(resume.template).name}</span><button data-action="templates">Change template</button></div><div id="live-preview">${resumeHtml(resume)}</div><div class="preview-footnote">${icon('lock')} Your draft is saved only on this device.</div></aside></div></main>`; }
-function uploadPanel() { return `<div class="upload-zone" id="drop-zone"><div class="upload-icon">${icon('upload')}</div><h3>Let your achievements speak.</h3><p>Drop certificates here, or choose files to get started.</p><label class="button secondary upload-label">Choose files<input class="visually-hidden" type="file" id="certificate-upload" multiple accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp"></label><small>PDF, DOCX, TXT, JPG or PNG · up to 15 MB each</small></div><div class="local-note">${icon('shield')}<p><strong>Read locally. Reviewed by you.</strong> Text documents are parsed with rules, not AI. Scans and images need manual transcription. We never infer qualifications or skill levels.</p></div>${busy ? `<div class="processing" role="status"><span class="spinner"></span>${e(busyMessage)}</div>` : ''}<div class="review-list">${reviews.map(reviewCard).join('')}</div><button class="text-button add-manual" data-action="manual-certificate">${icon('plus')} Enter a certificate manually</button>`; }
-function reviewCard(d) {
-  if (d.error) return `<article class="review-card"><div class="review-title"><strong>${e(d.fileName)}</strong><button class="icon-button" data-action="dismiss-review" data-id="${d.id}" aria-label="Remove failed upload">${icon('close')}</button></div><p class="error-text">${e(d.error)}</p></article>`;
-  return `<article class="review-card" data-review="${d.id}"><div class="review-title"><span class="file-mark">${icon('file')}</span><div><h3>${e(d.fileName || 'Manual certificate')}</h3><span class="review-badge">${d.added ? 'Added to your resume' : d.status === 'manual' ? 'Needs manual details' : 'Ready for your review'}</span></div><button class="icon-button" data-action="dismiss-review" data-id="${d.id}" aria-label="Remove document review">${icon('close')}</button></div>${!d.added ? `${d.status === 'manual' ? '<p class="review-notice">No readable text was found. Enter the details below, or paste a transcription to analyze it.</p>' : '<p class="review-notice">These are suggestions from the document, not verified credentials. Check each field before adding.</p>'}${d.titleCount > 1 ? '<p class="review-notice">Multiple course titles were found. Add the first, then use “Add another course” for the others.</p>' : ''}${d.recipient ? `<p class="recipient-line">Recipient in document: <strong>${e(d.recipient)}</strong>${resume.personal.name && d.recipient.toLowerCase() !== resume.personal.name.toLowerCase() ? ' · Check that this certificate belongs to you.' : ''}</p>` : ''}<div class="form-grid">${['title','issuer','date','credential','url','description'].map(k => { const labels = { title: 'Course / specialization name', issuer: 'Issuing organization', date: 'Completion date', credential: 'Credential ID', url: 'Verification link', description: 'Course details (optional)' }; return `<div class="field ${['title','description'].includes(k) ? 'full' : ''}"><label for="review-${d.id}-${k}">${labels[k]}</label><input id="review-${d.id}-${k}" data-review-id="${d.id}" data-review-field="${k}" value="${e(d[k])}" placeholder="${k === 'title' ? 'Required to add this course' : 'Enter or confirm'}">${d.evidence[k] ? `<details class="evidence"><summary>Source · ${e(d.evidence[k].method)}</summary><blockquote>${e(d.evidence[k].text)}</blockquote></details>` : ''}</div>`; }).join('')}</div>${d.skills.length ? `<div class="suggested-skills"><label>Skills explicitly mentioned</label><p>Select only skills you want to claim on your resume.</p><div>${d.skills.map((s,i) => `<label class="skill-choice" title="${e(s.evidence)}"><input type="checkbox" data-review-id="${d.id}" data-skill="${i}" ${s.selected ? 'checked' : ''}>${e(s.name)}</label>`).join('')}</div></div>` : ''}<details class="source-details"><summary>View source / paste a transcription</summary>${d.imageUrl ? `<img class="certificate-image" src="${d.imageUrl}" alt="Uploaded certificate for manual review">` : ''}${d.fileUrl ? `<a href="${d.fileUrl}" target="_blank" rel="noopener">Open original document ↗</a>` : ''}<label for="raw-${d.id}" class="source-label">Extracted text or your transcription</label><textarea id="raw-${d.id}" data-review-id="${d.id}" data-review-field="raw" rows="7">${e(d.raw)}</textarea>${btn('Analyze this text', 'reanalyze', 'secondary small', `data-id="${d.id}"`)}</details><div class="review-bottom"><span>${icon('eye')} Nothing is added without your review.</span>${btn('Confirm & add', 'accept-review', 'primary small', `data-id="${d.id}"`, 'plus')}</div>` : `<div class="added-summary">${icon('check')} ${e(d.title)}<button class="text-button" data-action="another-course" data-id="${d.id}">Add another course from this document</button></div>`}</article>`;
+function personalForm() {
+  const p = resume.personal;
+  return `<div class="photo-control">${p.photo ? `<img src="${p.photo}" alt="Your profile photo">` : `<div class="photo-placeholder">${icon('image')}</div>`}<div><label class="button secondary small upload-photo-label">${p.photo ? 'Change photo' : 'Add a photo'}<input type="file" id="photo-upload" accept="image/png,image/jpeg,image/webp" class="visually-hidden"></label><p>Optional · JPG, PNG, WebP · up to 8 MB</p></div>${p.photo ? `<button class="icon-button" data-action="remove-photo" aria-label="Remove photo">${icon('trash')}</button>` : ''}</div><div class="form-grid">${field('Full name', 'personal.name', p.name, { placeholder: 'e.g. Alex Morgan' })}${field('Professional title', 'personal.title', p.title, { placeholder: 'e.g. Product Designer' })}${field('Email address', 'personal.email', p.email, { type: 'email', placeholder: 'you@example.com' })}${field('Phone number', 'personal.phone', p.phone, { type: 'tel', placeholder: '+91 98765 43210' })}${field('Location', 'personal.location', p.location, { placeholder: 'City, country' })}${field('Website or portfolio', 'personal.website', p.website, { placeholder: 'yourwebsite.com' })}</div>`;
 }
-function documents() { return `${header()}<main id="main" class="flow-page documents-page">${steps('documents')}<div class="page-intro"><div class="eyebrow">03 / THE WORK YOU’VE PUT IN</div><h1>More than a piece of paper.</h1><p>Turn your courses and certifications into part of your story.</p></div><div class="documents-container">${uploadPanel()}<div class="flow-actions"><button class="text-button" data-action="details">${icon('back')} Your details</button>${btn('Continue to editor', 'editor', 'primary', '', 'arrow')}</div><p class="optional-note">Certificates are optional. You can always add them later.</p></div></main>`; }
+function details() {
+  return `${header()}<main id="main" class="flow-page">${steps('details')}<div class="details-layout"><section class="form-card"><div class="eyebrow">02 / THE INTRODUCTION</div><h1>Let’s start with you.</h1><p class="muted">A few details to make this page your own.</p>${personalForm()}${field('A little about you', 'summary', resume.summary, { area: true, placeholder: 'What you do, what you bring, and where you want to go.', hint: 'Use your own words. You can refine this in the editor.' })}<div class="flow-actions"><button class="text-button" data-action="templates">${icon('back')} Templates</button>${btn('Continue to certificates', 'documents', 'primary', '', 'arrow')}</div></section><aside class="details-preview"><div class="preview-caption"><span>${getTemplate(resume.template).name}</span><button data-action="templates">Change template</button></div><div id="live-preview">${resumeHtml(resume)}</div><div class="preview-footnote">${icon('lock')} Your draft is saved only on this device.</div></aside></div></main>`;
+}
+function uploadPanel() {
+  return `<div class="upload-zone" id="drop-zone"><div class="upload-icon">${icon('upload')}</div><h3>Let your achievements speak.</h3><p>Drop certificates here, or choose files to get started.</p><label class="button secondary upload-label">Choose files<input class="visually-hidden" type="file" id="certificate-upload" multiple accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp"></label><small>PDF, DOCX, TXT, JPG or PNG · up to 15 MB each</small></div><div class="local-note">${icon('shield')}<p><strong>Read locally. Reviewed by you.</strong> Text documents are parsed with rules, not AI. Scans and images need manual transcription. We never infer qualifications or skill levels.</p></div>${busy ? `<div class="processing" role="status"><span class="spinner"></span>${e(busyMessage)}<button class="text-button" data-action="cancel-upload">Cancel reading</button></div>` : ''}<div class="review-list">${reviews.map(reviewCard).join('')}</div><button class="text-button add-manual" data-action="manual-certificate">${icon('plus')} Enter a certificate manually</button>`;
+}
+function reviewCard(d) {
+  if (d.error)
+    return `<article class="review-card"><div class="review-title"><strong>${e(d.fileName)}</strong><button class="icon-button" data-action="dismiss-review" data-id="${d.id}" aria-label="Remove failed upload">${icon('close')}</button></div><p class="error-text">${e(d.error)}</p></article>`;
+  return `<article class="review-card" data-review="${d.id}"><div class="review-title"><span class="file-mark">${icon('file')}</span><div><h3>${e(d.fileName || 'Manual certificate')}</h3><span class="review-badge">${d.added ? 'Added to your resume' : d.status === 'manual' ? 'Needs manual details' : 'Ready for your review'}</span></div><button class="icon-button" data-action="dismiss-review" data-id="${d.id}" aria-label="Remove document review">${icon('close')}</button></div>${
+    !d.added
+      ? `${d.status === 'manual' ? '<p class="review-notice">No readable text was found. Enter the details below, or paste a transcription to analyze it.</p>' : '<p class="review-notice">These are suggestions from the document, not verified credentials. Check each field before adding.</p>'}${d.titleCount > 1 ? '<p class="review-notice">Multiple course titles were found. Add the first, then use “Add another course” for the others.</p>' : ''}${d.recipient ? `<p class="recipient-line">Recipient in document: <strong>${e(d.recipient)}</strong>${resume.personal.name && d.recipient.toLowerCase() !== resume.personal.name.toLowerCase() ? ' · Check that this certificate belongs to you.' : ''}</p>` : ''}<div class="form-grid">${[
+          'title',
+          'issuer',
+          'date',
+          'credential',
+          'url',
+          'description',
+        ]
+          .map((k) => {
+            const labels = {
+              title: 'Course / specialization name',
+              issuer: 'Issuing organization',
+              date: 'Completion date',
+              credential: 'Credential ID',
+              url: 'Verification link',
+              description: 'Course details (optional)',
+            };
+            return `<div class="field ${['title', 'description'].includes(k) ? 'full' : ''}"><label for="review-${d.id}-${k}">${labels[k]}</label><input id="review-${d.id}-${k}" data-review-id="${d.id}" data-review-field="${k}" value="${e(d[k])}" placeholder="${k === 'title' ? 'Required to add this course' : 'Enter or confirm'}">${d.evidence[k] ? `<details class="evidence"><summary>Source · ${e(d.evidence[k].method)}</summary><blockquote>${e(d.evidence[k].text)}</blockquote></details>` : ''}</div>`;
+          })
+          .join(
+            '',
+          )}</div>${d.skills.length ? `<div class="suggested-skills"><label>Skills explicitly mentioned</label><p>Select only skills you want to claim on your resume.</p><div>${d.skills.map((s, i) => `<label class="skill-choice" title="${e(s.evidence)}"><input type="checkbox" data-review-id="${d.id}" data-skill="${i}" ${s.selected ? 'checked' : ''}>${e(s.name)}</label>`).join('')}</div></div>` : ''}<details class="source-details"><summary>View source / paste a transcription</summary>${d.imageUrl ? `<img class="certificate-image" src="${d.imageUrl}" alt="Uploaded certificate for manual review">` : ''}${d.fileUrl ? `<a href="${d.fileUrl}" target="_blank" rel="noopener">Open original document ↗</a>` : ''}<label for="raw-${d.id}" class="source-label">Extracted text or your transcription</label><textarea id="raw-${d.id}" data-review-id="${d.id}" data-review-field="raw" rows="7">${e(d.raw)}</textarea>${btn('Analyze this text', 'reanalyze', 'secondary small', `data-id="${d.id}"`)}</details><div class="review-bottom"><span>${icon('eye')} Nothing is added without your review.</span>${btn('Confirm & add', 'accept-review', 'primary small', `data-id="${d.id}"`, 'plus')}</div>`
+      : `<div class="added-summary">${icon('check')} ${e(d.title)}<button class="text-button" data-action="another-course" data-id="${d.id}">Add another course from this document</button></div>`
+  }</article>`;
+}
+function documents() {
+  return `${header()}<main id="main" class="flow-page documents-page">${steps('documents')}<div class="page-intro"><div class="eyebrow">03 / THE WORK YOU’VE PUT IN</div><h1>More than a piece of paper.</h1><p>Turn your courses and certifications into part of your story.</p></div><div class="documents-container">${uploadPanel()}<div class="flow-actions"><button class="text-button" data-action="details">${icon('back')} Your details</button>${btn('Continue to editor', 'editor', 'primary', '', 'arrow')}</div><p class="optional-note">Certificates are optional. You can always add them later.</p></div></main>`;
+}
 function entryForm(key, x, i) {
   let fields = '';
-  if (key === 'certificates') fields = field('Course / certification', `${key}.${i}.title`, x.title, { full: true }) + field('Issuer', `${key}.${i}.issuer`, x.issuer) + field('Date', `${key}.${i}.date`, x.date) + field('Credential ID', `${key}.${i}.credential`, x.credential) + field('Verification link', `${key}.${i}.url`, x.url);
-  else fields = field(key === 'experience' ? 'Role / job title' : key === 'education' ? 'Degree / qualification' : 'Project name', `${key}.${i}.title`, x.title, { full: true }) + (key !== 'projects' ? field(key === 'education' ? 'Institution' : 'Organization', `${key}.${i}.organization`, x.organization) : field('Project link', `${key}.${i}.link`, x.link)) + field('Dates', `${key}.${i}.dates`, x.dates, { placeholder: '2022 — Present' }) + (key === 'experience' ? field('Location', `${key}.${i}.location`, x.location, { full: true }) : '');
-  return `<div class="entry-form"><div class="entry-toolbar"><span>${i+1}. ${e(x.title || 'Untitled entry')}</span><div><button class="icon-button" data-action="move-entry" data-key="${key}" data-index="${i}" data-direction="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move entry up">${icon('up')}</button><button class="icon-button" data-action="move-entry" data-key="${key}" data-index="${i}" data-direction="1" ${i === resume[key].length-1 ? 'disabled' : ''} aria-label="Move entry down">${icon('down')}</button><button class="icon-button" data-action="delete-entry" data-key="${key}" data-index="${i}" aria-label="Remove entry">${icon('trash')}</button></div></div><div class="form-grid">${fields}${field('Description / achievements', `${key}.${i}.description`, x.description, { area: true, full: true, placeholder: 'Add your achievements. Put each point on a new line.' })}</div></div>`;
+  if (key === 'certificates')
+    fields =
+      field('Course / certification', `${key}.${i}.title`, x.title, { full: true }) +
+      field('Issuer', `${key}.${i}.issuer`, x.issuer) +
+      field('Date', `${key}.${i}.date`, x.date) +
+      field('Credential ID', `${key}.${i}.credential`, x.credential) +
+      field('Verification link', `${key}.${i}.url`, x.url);
+  else
+    fields =
+      field(
+        key === 'experience'
+          ? 'Role / job title'
+          : key === 'education'
+            ? 'Degree / qualification'
+            : 'Project name',
+        `${key}.${i}.title`,
+        x.title,
+        { full: true },
+      ) +
+      (key !== 'projects'
+        ? field(
+            key === 'education' ? 'Institution' : 'Organization',
+            `${key}.${i}.organization`,
+            x.organization,
+          )
+        : field('Project link', `${key}.${i}.link`, x.link)) +
+      field('Dates', `${key}.${i}.dates`, x.dates, { placeholder: '2022 — Present' }) +
+      (key === 'experience'
+        ? field('Location', `${key}.${i}.location`, x.location, { full: true })
+        : '');
+  return `<div class="entry-form"><div class="entry-toolbar"><span>${i + 1}. ${e(x.title || 'Untitled entry')}</span><div><button class="icon-button" data-action="move-entry" data-key="${key}" data-index="${i}" data-direction="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move entry up">${icon('up')}</button><button class="icon-button" data-action="move-entry" data-key="${key}" data-index="${i}" data-direction="1" ${i === resume[key].length - 1 ? 'disabled' : ''} aria-label="Move entry down">${icon('down')}</button><button class="icon-button" data-action="delete-entry" data-key="${key}" data-index="${i}" aria-label="Remove entry">${icon('trash')}</button></div></div><div class="form-grid">${fields}${field('Description / achievements', `${key}.${i}.description`, x.description, { area: true, full: true, placeholder: 'Add your achievements. Put each point on a new line.' })}</div></div>`;
 }
 function contentPanel() {
   const key = activeSection;
-  return `<div class="section-selector">${[['personal','Personal details'],...resume.order.map(k => [k, resume.headings[k] || defaultHeadings[k]])].map(([k,title]) => `<button class="${key === k ? 'active' : ''}" data-action="edit-section" data-id="${k}">${e(title)}${resume.hidden.includes(k) ? '<span>Hidden</span>' : ''}</button>`).join('')}</div><div class="editor-fields"><div class="panel-heading"><h2>${key === 'personal' ? 'The introduction' : e(defaultHeadings[key])}</h2><p>${key === 'personal' ? 'The details that make this yours.' : 'Your words. Your experience. Every detail editable.'}</p></div>${key === 'personal' ? personalForm() : `${field('Section heading', `headings.${key}`, resume.headings[key])}${['experience','education','projects','certificates'].includes(key) ? `${resume[key].map((x,i) => entryForm(key,x,i)).join('')}${btn('Add ' + ({ experience: 'experience', education: 'education', projects: 'project', certificates: 'certificate' }[key]), 'add-entry', 'secondary full-width', `data-key="${key}"`, 'plus')}${key === 'certificates' ? '<button class="text-button upload-from-editor" data-action="documents">Import from a certificate →</button>' : ''}` : field('Content', key, resume[key], { area: true, rows: 10, placeholder: key === 'skills' ? 'e.g. Python, Data analysis, Project management' : 'Write in your own words…', hint: key === 'skills' ? 'Separate skills with commas or line breaks.' : 'Line breaks are preserved in your resume.' })}`}</div>`;
+  return `<div class="section-selector">${[['personal', 'Personal details'], ...resume.order.map((k) => [k, resume.headings[k] || defaultHeadings[k]])].map(([k, title]) => `<button class="${key === k ? 'active' : ''}" data-action="edit-section" data-id="${k}">${e(title)}${resume.hidden.includes(k) ? '<span>Hidden</span>' : ''}</button>`).join('')}</div><div class="editor-fields"><div class="panel-heading"><h2>${key === 'personal' ? 'The introduction' : e(defaultHeadings[key])}</h2><p>${key === 'personal' ? 'The details that make this yours.' : 'Your words. Your experience. Every detail editable.'}</p></div>${key === 'personal' ? personalForm() : `${field('Section heading', `headings.${key}`, resume.headings[key])}${['experience', 'education', 'projects', 'certificates'].includes(key) ? `${resume[key].map((x, i) => entryForm(key, x, i)).join('')}${btn('Add ' + { experience: 'experience', education: 'education', projects: 'project', certificates: 'certificate' }[key], 'add-entry', 'secondary full-width', `data-key="${key}"`, 'plus')}${key === 'certificates' ? '<button class="text-button upload-from-editor" data-action="documents">Import from a certificate →</button>' : ''}` : field('Content', key, resume[key], { area: true, rows: 10, placeholder: key === 'skills' ? 'e.g. Python, Data analysis, Project management' : 'Write in your own words…', hint: key === 'skills' ? 'Separate skills with commas or line breaks.' : 'Line breaks are preserved in your resume.' })}`}</div>`;
 }
-function designPanel() { const c = config(resume); return `<div class="editor-fields"><div class="panel-heading"><h2>A few finishing touches.</h2><p>Simple choices. A distinctly personal result.</p></div><div class="current-template">${miniature(getTemplate(resume.template))}<div><strong>${getTemplate(resume.template).name}</strong><p>${getTemplate(resume.template).category}</p><button class="text-button" data-action="templates">Change template →</button></div></div><div class="field"><label for="accent-color">Accent color</label><div class="color-controls">${['#293430','#354f65','#70594b','#566044','#754b55','#222222'].map(color => `<button class="swatch ${c.accent === color ? 'active' : ''}" style="background:${color}" data-action="color" data-id="${color}" aria-label="Use ${color}" aria-pressed="${c.accent === color}">${c.accent === color ? icon('check') : ''}</button>`).join('')}<input type="color" id="accent-color" data-path="style.accent" value="${c.accent}" aria-label="Custom accent color"></div></div><div class="field"><label for="font-select">Typography</label><select id="font-select" data-path="style.font"><option value="template" ${resume.style.font === 'template' ? 'selected' : ''}>Template default</option><option value="sans" ${resume.style.font === 'sans' ? 'selected' : ''}>Modern sans</option><option value="serif" ${resume.style.font === 'serif' ? 'selected' : ''}>Editorial serif</option><option value="mono" ${resume.style.font === 'mono' ? 'selected' : ''}>Monospace</option></select></div><div class="field"><label for="font-size">Text size <output id="size-output">${resume.style.size} pt</output></label><input id="font-size" type="range" min="8" max="13" step="0.5" data-path="style.size" value="${resume.style.size}"></div><div class="field"><label for="line-spacing">Line spacing <output id="spacing-output">${resume.style.spacing}</output></label><input id="line-spacing" type="range" min="1.1" max="1.7" step="0.05" data-path="style.spacing" value="${resume.style.spacing}"></div><div class="field"><label for="paper-size">Paper size</label><select id="paper-size" data-path="style.paper"><option value="A4" ${resume.style.paper === 'A4' ? 'selected' : ''}>A4 · 210 × 297 mm</option><option value="LETTER" ${resume.style.paper === 'LETTER' ? 'selected' : ''}>US Letter · 8.5 × 11 in</option></select></div><label class="switch-label"><span>Include profile photo<small>Available on every template</small></span><input type="checkbox" data-path="style.photo" ${resume.style.photo ? 'checked' : ''}></label></div>`; }
-function sectionsPanel() { return `<div class="editor-fields"><div class="panel-heading"><h2>Arrange your story.</h2><p>Reorder sections or hide anything you don’t need.</p></div>${resume.order.map((k,i) => `<div class="section-order-row"><label><input type="checkbox" data-section-visible="${k}" ${resume.hidden.includes(k) ? '' : 'checked'}><span>${e(resume.headings[k] || defaultHeadings[k])}</span></label><div><button class="icon-button" data-action="move-section" data-index="${i}" data-direction="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move ${e(resume.headings[k])} up">${icon('up')}</button><button class="icon-button" data-action="move-section" data-index="${i}" data-direction="1" ${i === resume.order.length - 1 ? 'disabled' : ''} aria-label="Move ${e(resume.headings[k])} down">${icon('down')}</button></div></div>`).join('')}<p class="helper-text">In two-column layouts, skills, education, certificates, and languages stay in the sidebar. Their order follows your choices.</p><div class="data-actions"><h3>Your workspace</h3><button class="text-button" data-action="sample">Try with example content</button><button class="text-button danger" data-action="reset">Start a fresh resume</button></div></div>`; }
-function editor() { return `<header class="editor-header">${brand}<div class="editor-document-title"><span>${e(resume.personal.name || 'Untitled')}’s resume</span><small id="save-label">${storageError ? 'Not saved to this device' : 'Saved to this device'}</small></div><div class="editor-header-actions"><button class="icon-button" data-action="undo" aria-label="Undo last change" title="Undo last change">${icon('undo')}</button>${btn('Download', 'export', 'primary small', '', 'download')}</div></header><main id="main" class="editor-layout"><aside class="editor-panel"><div class="editor-tabs" role="tablist" aria-label="Editor tools">${[['content','edit','Content'],['design','palette','Design'],['sections','grid','Sections']].map(([id,ic,label]) => `<button role="tab" aria-selected="${activeTab === id}" data-action="editor-tab" data-id="${id}" class="${activeTab === id ? 'active' : ''}">${icon(ic)}${label}</button>`).join('')}</div><div id="editor-panel-content">${activeTab === 'content' ? contentPanel() : activeTab === 'design' ? designPanel() : sectionsPanel()}</div></aside><section class="editor-preview"><div class="preview-toolbar"><span><span class="live-dot"></span> Live preview</span><div><span>${getTemplate(resume.template).name}</span><button class="text-button" data-action="preview-pdf">${icon('eye')} Preview PDF</button></div></div><div class="preview-scroll"><div id="live-preview">${resumeHtml(resume)}</div><p class="preview-tip">Continuous preview · PDF export creates the final page breaks</p></div><button class="mobile-edit-button button secondary" data-action="back-to-edit">Back to editing ${icon('up')}</button></section></main>`; }
-function render() { document.body.classList.toggle('in-editor', page === 'editor'); $('#app').innerHTML = page === 'home' ? home() : page === 'templates' ? gallery() : page === 'details' ? details() : page === 'documents' ? documents() : editor(); resizeMiniatures(); }
-function resizeMiniatures() { requestAnimationFrame(() => { document.querySelectorAll('.mini-frame').forEach(el => el.style.setProperty('--mini-scale', el.clientWidth / 595)); }); }
+function designPanel() {
+  const c = config(resume);
+  return `<div class="editor-fields"><div class="panel-heading"><h2>A few finishing touches.</h2><p>Simple choices. A distinctly personal result.</p></div><div class="current-template">${miniature(getTemplate(resume.template))}<div><strong>${getTemplate(resume.template).name}</strong><p>${getTemplate(resume.template).category}</p><button class="text-button" data-action="templates">Change template →</button></div></div><div class="field"><label for="accent-color">Accent color</label><div class="color-controls">${['#293430', '#354f65', '#70594b', '#566044', '#754b55', '#222222'].map((color) => `<button class="swatch ${c.accent === color ? 'active' : ''}" style="background:${color}" data-action="color" data-id="${color}" aria-label="Use ${color}" aria-pressed="${c.accent === color}">${c.accent === color ? icon('check') : ''}</button>`).join('')}<input type="color" id="accent-color" data-path="style.accent" value="${c.accent}" aria-label="Custom accent color"></div></div><div class="field"><label for="font-select">Typography</label><select id="font-select" data-path="style.font"><option value="template" ${resume.style.font === 'template' ? 'selected' : ''}>Template default</option><option value="sans" ${resume.style.font === 'sans' ? 'selected' : ''}>Modern sans</option><option value="serif" ${resume.style.font === 'serif' ? 'selected' : ''}>Editorial serif</option><option value="mono" ${resume.style.font === 'mono' ? 'selected' : ''}>Monospace</option></select></div><div class="field"><label for="font-size">Text size <output id="size-output">${resume.style.size} pt</output></label><input id="font-size" type="range" min="8" max="13" step="0.5" data-path="style.size" value="${resume.style.size}"></div><div class="field"><label for="line-spacing">Line spacing <output id="spacing-output">${resume.style.spacing}</output></label><input id="line-spacing" type="range" min="1.1" max="1.7" step="0.05" data-path="style.spacing" value="${resume.style.spacing}"></div><div class="field"><label for="paper-size">Paper size</label><select id="paper-size" data-path="style.paper"><option value="A4" ${resume.style.paper === 'A4' ? 'selected' : ''}>A4 · 210 × 297 mm</option><option value="LETTER" ${resume.style.paper === 'LETTER' ? 'selected' : ''}>US Letter · 8.5 × 11 in</option></select></div><label class="switch-label"><span>Include profile photo<small>Available on every template</small></span><input type="checkbox" data-path="style.photo" ${resume.style.photo ? 'checked' : ''}></label></div>`;
+}
+function sectionsPanel() {
+  return `<div class="editor-fields"><div class="panel-heading"><h2>Arrange your story.</h2><p>Reorder sections or hide anything you don’t need.</p></div>${resume.order.map((k, i) => `<div class="section-order-row"><label><input type="checkbox" data-section-visible="${k}" ${resume.hidden.includes(k) ? '' : 'checked'}><span>${e(resume.headings[k] || defaultHeadings[k])}</span></label><div><button class="icon-button" data-action="move-section" data-index="${i}" data-direction="-1" ${i === 0 ? 'disabled' : ''} aria-label="Move ${e(resume.headings[k])} up">${icon('up')}</button><button class="icon-button" data-action="move-section" data-index="${i}" data-direction="1" ${i === resume.order.length - 1 ? 'disabled' : ''} aria-label="Move ${e(resume.headings[k])} down">${icon('down')}</button></div></div>`).join('')}<p class="helper-text">In two-column layouts, skills, education, certificates, and languages stay in the sidebar. Their order follows your choices.</p><div class="data-actions"><h3>Your workspace</h3><button class="text-button" data-action="backup">Download editable backup</button><label class="text-button backup-import-label">Restore a backup<input type="file" id="backup-import" accept=".json,application/json" class="visually-hidden"></label><p class="helper-text">A backup keeps your content, photo, template, and settings together. Keep the file private.</p>${storageConflict ? '<div class="conflict-notice" role="alert"><strong>This draft changed in another tab.</strong><p>Download a backup first, then choose which version to keep.</p><button class="button secondary small" data-action="load-other">Load the other version</button><button class="button secondary small" data-action="keep-local">Keep this version</button></div>' : ''}<button class="text-button" data-action="sample">Try with example content</button><button class="text-button danger" data-action="reset">Start a fresh resume</button></div></div>`;
+}
+function editor() {
+  return `<header class="editor-header">${brand}<div class="editor-document-title"><span>${e(resume.personal.name || 'Untitled')}’s resume</span><small id="save-label">${storageError ? 'Not saved to this device' : 'Saved to this device'}</small></div><div class="editor-header-actions"><button class="icon-button" data-action="undo" aria-label="Undo last change" title="Undo last change">${icon('undo')}</button>${btn('Download', 'export', 'primary small', '', 'download')}</div></header><main id="main" class="editor-layout"><aside class="editor-panel"><div class="editor-tabs" role="tablist" aria-label="Editor tools">${[
+    ['content', 'edit', 'Content'],
+    ['design', 'palette', 'Design'],
+    ['sections', 'grid', 'Sections'],
+  ]
+    .map(
+      ([id, ic, label]) =>
+        `<button role="tab" aria-selected="${activeTab === id}" data-action="editor-tab" data-id="${id}" class="${activeTab === id ? 'active' : ''}">${icon(ic)}${label}</button>`,
+    )
+    .join(
+      '',
+    )}</div><div id="editor-panel-content">${activeTab === 'content' ? contentPanel() : activeTab === 'design' ? designPanel() : sectionsPanel()}</div></aside><section class="editor-preview"><div class="preview-toolbar"><span><span class="live-dot"></span> Live preview</span><div><span>${getTemplate(resume.template).name}</span><button class="text-button" data-action="preview-pdf">${icon('eye')} Preview PDF</button></div></div><div class="preview-scroll"><div id="live-preview">${resumeHtml(resume)}</div><p class="preview-tip">Continuous preview · PDF export creates the final page breaks</p></div><button class="mobile-edit-button button secondary" data-action="back-to-edit">Back to editing ${icon('up')}</button></section></main>`;
+}
+function render() {
+  document.body.classList.toggle('in-editor', page === 'editor');
+  $('#app').innerHTML =
+    page === 'home'
+      ? home()
+      : page === 'templates'
+        ? gallery()
+        : page === 'details'
+          ? details()
+          : page === 'documents'
+            ? documents()
+            : editor();
+  document.title = `${{ home: 'Your next chapter', templates: 'Choose a template', details: 'Your details', documents: 'Review certificates', editor: 'Resume editor' }[page]} — Folio`;
+  $('#main')?.setAttribute('tabindex', '-1');
+  configureTabs();
+  configureInputs();
+  if (page === 'editor') {
+    const title = document.createElement('h1');
+    title.className = 'visually-hidden';
+    title.textContent = 'Resume editor';
+    $('#main').prepend(title);
+  }
+  updateSaveLabel();
+  resizeMiniatures();
+}
+function configureTabs() {
+  document.querySelectorAll('[role="tab"]').forEach((tab) => {
+    tab.id = `tab-${tab.dataset.id}`;
+    tab.tabIndex = tab.dataset.id === activeTab ? 0 : -1;
+    tab.setAttribute('aria-controls', 'editor-panel-content');
+  });
+  const panel = $('#editor-panel-content');
+  if (panel) {
+    panel.setAttribute('role', 'tabpanel');
+    panel.setAttribute('aria-labelledby', `tab-${activeTab}`);
+  }
+}
+function configureInputs() {
+  document.querySelectorAll('input[data-path],textarea[data-path]').forEach((el) => {
+    const path = el.dataset.path;
+    if (['range', 'color', 'checkbox'].includes(el.type)) return;
+    el.maxLength = path.startsWith('personal.')
+      ? 1000
+      : path.startsWith('headings.')
+        ? 150
+        : /^(experience|education|projects|certificates)\./.test(path) &&
+            !path.endsWith('.description')
+          ? 2000
+          : 20000;
+  });
+  document.querySelectorAll('[data-review-field]').forEach((el) => {
+    el.maxLength =
+      el.dataset.reviewField === 'raw'
+        ? 200000
+        : el.dataset.reviewField === 'description'
+          ? 20000
+          : 2000;
+  });
+}
+function resizeMiniatures() {
+  requestAnimationFrame(() => {
+    document
+      .querySelectorAll('.mini-frame')
+      .forEach((el) => el.style.setProperty('--mini-scale', el.clientWidth / 595));
+  });
+}
 window.addEventListener('resize', resizeMiniatures);
-function updatePreview() { const node = $('#live-preview'); if (node) node.innerHTML = resumeHtml(resume); persist(); }
-function rerenderPanel() { const panel = $('#editor-panel-content'); if (panel) { panel.innerHTML = activeTab === 'content' ? contentPanel() : activeTab === 'design' ? designPanel() : sectionsPanel(); resizeMiniatures(); } updatePreview(); }
-function modal(content, wide = false) { const previous = document.activeElement; const dialog = document.createElement('dialog'); dialog.className = `modal ${wide ? 'wide' : ''}`; dialog.innerHTML = `<button class="modal-close icon-button" aria-label="Close dialog" data-action="close-modal">${icon('close')}</button>${content}`; document.body.append(dialog); dialog.addEventListener('close', () => { dialog.remove(); previous?.focus(); }); dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); }); dialog.showModal(); }
-function showExport() { modal(`<div class="modal-icon">${icon('download')}</div><div class="eyebrow">READY FOR WHAT’S NEXT</div><h2>Make it official.</h2><p>Your resume, ready to go wherever you’re headed.</p><div class="export-options"><button data-action="download-pdf"><span class="export-file">PDF</span><div><strong>PDF document</strong><small>Searchable text. Ready to share.</small></div>${icon('download')}</button><button data-action="download-docx"><span class="export-file">DOCX</span><div><strong>Word document</strong><small>Editable text, with your colors and structure.</small></div>${icon('download')}</button></div><p class="export-note">PDF uses print typography and automatic page breaks. Word may reflow with installed fonts. Preview your PDF before sending.</p><button class="text-button" data-action="preview-pdf">Preview the final PDF ${icon('arrow')}</button><div id="export-status" role="status"></div>`); }
+function updatePreview() {
+  const node = $('#live-preview');
+  if (node) node.innerHTML = resumeHtml(resume);
+  persist();
+}
+function rerenderPanel() {
+  const panel = $('#editor-panel-content');
+  if (panel) {
+    panel.innerHTML =
+      activeTab === 'content'
+        ? contentPanel()
+        : activeTab === 'design'
+          ? designPanel()
+          : sectionsPanel();
+    resizeMiniatures();
+    configureInputs();
+  }
+  updatePreview();
+}
+function modal(content, wide = false) {
+  const previous = document.activeElement;
+  const dialog = document.createElement('dialog');
+  dialog.className = `modal ${wide ? 'wide' : ''}`;
+  dialog.innerHTML = `<button class="modal-close icon-button" aria-label="Close dialog" data-action="close-modal">${icon('close')}</button>${content}`;
+  const heading = dialog.querySelector('h2');
+  if (heading) {
+    heading.id = 'dialog-title-' + crypto.randomUUID();
+    dialog.setAttribute('aria-labelledby', heading.id);
+  }
+  document.body.append(dialog);
+  dialog.addEventListener('close', () => {
+    dialog.remove();
+    if (previous?.isConnected) previous.focus();
+  });
+  dialog.addEventListener('click', (event) => {
+    if (event.target === dialog) dialog.close();
+  });
+  dialog.showModal();
+}
+function showExport() {
+  modal(
+    `<div class="modal-icon">${icon('download')}</div><div class="eyebrow">READY FOR WHAT’S NEXT</div><h2>Make it official.</h2><p>Your resume, ready to go wherever you’re headed.</p><div class="export-options"><button data-action="download-pdf"><span class="export-file">PDF</span><div><strong>PDF document</strong><small>Searchable text. Ready to share.</small></div>${icon('download')}</button><button data-action="download-docx"><span class="export-file">DOCX</span><div><strong>Word document</strong><small>Editable text, with your colors and structure.</small></div>${icon('download')}</button></div><p class="export-note">PDF uses print typography and automatic page breaks. Word may reflow with installed fonts. Preview your PDF before sending.</p><button class="text-button" data-action="preview-pdf">Preview the final PDF ${icon('arrow')}</button><div id="export-status" role="status"></div>`,
+  );
+}
 async function exportFile(type, preview = false) {
-  if (exportBusy) return; exportBusy = true;
-  const status = $('#export-status'); if (status) status.innerHTML = '<span class="spinner"></span> Preparing your document…';
+  if (exportBusy) return;
+  if (!resume.personal.name.trim()) {
+    document.querySelector('dialog')?.close();
+    activeTab = 'content';
+    activeSection = 'personal';
+    navigate('editor');
+    $('#field-personal-name')?.focus();
+    toast('Add your name before exporting your resume.');
+    return;
+  }
+  let exportResume;
+  try {
+    exportResume = validateResume(structuredClone(resume));
+  } catch (error) {
+    toast(error.message);
+    return;
+  }
+  exportBusy = true;
+  const exportName = fileName(type);
+  const status = $('#export-status');
+  if (status) status.innerHTML = '<span class="spinner"></span> Preparing your document…';
   toast('Preparing your ' + type.toUpperCase() + '…');
-  try { const exporter = await import('./export.js'); const blob = await (type === 'pdf' ? exporter.makePdfBlob(resume) : exporter.makeDocxBlob(resume));
-    if (preview) { if (previewUrl) URL.revokeObjectURL(previewUrl); previewUrl = URL.createObjectURL(blob); document.querySelector('dialog')?.close(); modal(`<h2>Your finished resume.</h2><p>Check the page breaks and text before downloading.</p><div class="pdf-preview" id="pdf-pages" aria-label="Final PDF pages"><p>Rendering your pages…</p></div><a class="button primary" href="${previewUrl}" download="${e(fileName('pdf'))}">Download PDF ${icon('download')}</a><a class="text-button" href="${previewUrl}" target="_blank" rel="noopener">Open PDF in a new tab ↗</a>`, true); await renderPdfPages(blob); }
-    else exporter.downloadBlob(blob, fileName(type));
-    toast(preview ? 'Your PDF is ready to review.' : 'Your download is ready.'); if (status) status.textContent = 'Ready. Your document has been generated.';
-  } catch (err) { console.error(err); toast('The export could not be created. Please try again.'); if (status) status.textContent = 'Export failed. Your draft is safe; try again.'; } finally { exportBusy = false; }
+  try {
+    const exporter = await import('./export.js');
+    const blob = await (type === 'pdf'
+      ? exporter.makePdfBlob(exportResume)
+      : exporter.makeDocxBlob(exportResume));
+    if (preview) {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(blob);
+      document.querySelector('dialog')?.close();
+      modal(
+        `<h2>Your finished resume.</h2><p>Check the page breaks and text before downloading.</p><div class="pdf-preview" id="pdf-pages" aria-label="Final PDF pages"><p>Rendering your pages…</p></div><a class="button primary" href="${previewUrl}" download="${e(fileName('pdf'))}">Download PDF ${icon('download')}</a><a class="text-button" href="${previewUrl}" target="_blank" rel="noopener">Open PDF in a new tab ↗</a>`,
+        true,
+      );
+      await renderPdfPages(blob);
+    } else exporter.downloadBlob(blob, exportName);
+    toast(preview ? 'Your PDF is ready to review.' : 'Your download is ready.');
+    if (status) status.textContent = 'Ready. Your document has been generated.';
+  } catch (err) {
+    console.error(err);
+    toast('The export could not be created. Please try again.');
+    if (status) status.textContent = 'Export failed. Your draft is safe; try again.';
+  } finally {
+    exportBusy = false;
+  }
 }
 async function renderPdfPages(blob) {
-  const pdfjs = await import('pdfjs-dist'); pdfjs.GlobalWorkerOptions.workerSrc = '/assets/pdf.worker.min.mjs';
-  const task = pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false, cMapUrl: '/assets/cmaps/', cMapPacked: true, standardFontDataUrl: '/assets/standard_fonts/', wasmUrl: '/assets/wasm/' });
-  try { const pdf = await task.promise; const container = $('#pdf-pages'); if (!container) return; container.innerHTML = '';
-    for (let i = 1; i <= pdf.numPages; i++) { if (!container.isConnected) break; const page = await pdf.getPage(i); const viewport = page.getViewport({scale:1.5}); const canvas = document.createElement('canvas'); canvas.width = viewport.width; canvas.height = viewport.height; canvas.setAttribute('aria-label', `Resume page ${i} of ${pdf.numPages}`); canvas.setAttribute('role', 'img'); const caption = document.createElement('p'); caption.textContent = `Page ${i} of ${pdf.numPages}`; container.append(canvas,caption); await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise; page.cleanup(); }
-  } finally { await task.destroy(); }
-}
-function fileName(ext) { return (resume.personal.name || 'My resume').replace(/[^\p{L}\p{N} -]/gu, '').trim().replace(/\s+/g, '-') + '-Resume.' + ext; }
-async function uploadFiles(files) {
-  if (busy) { toast('Please wait for the current files to finish.'); return; }
-  const list = [...files].slice(0, 20); if (files.length > 20) toast('Processing the first 20 files. You can add the rest afterward.');
-  busy = true; busyMessage = 'Reading your documents locally…'; render();
-  const { parseFile } = await import('./parser.js');
-  for (let i = 0; i < list.length; i++) {
-    busyMessage = `Reading ${i+1} of ${list.length}: ${list[i].name}`; render();
-    try { reviews.push(await parseFile(list[i])); } catch (err) { reviews.push({ id: crypto.randomUUID(), fileName: list[i].name, error: err.message }); }
+  const pdfjs = await import('pdfjs-dist');
+  pdfjs.GlobalWorkerOptions.workerSrc = '/assets/pdf.worker.min.mjs';
+  const task = pdfjs.getDocument({
+    data: new Uint8Array(await blob.arrayBuffer()),
+    isEvalSupported: false,
+    cMapUrl: '/assets/cmaps/',
+    cMapPacked: true,
+    standardFontDataUrl: '/assets/standard_fonts/',
+    wasmUrl: '/assets/wasm/',
+  });
+  try {
+    const pdf = await task.promise;
+    const container = $('#pdf-pages');
+    if (!container) return;
+    container.innerHTML = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (!container.isConnected) break;
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.setAttribute('aria-label', `Resume page ${i} of ${pdf.numPages}`);
+      canvas.setAttribute('role', 'img');
+      const caption = document.createElement('p');
+      caption.textContent = `Page ${i} of ${pdf.numPages}`;
+      container.append(canvas, caption);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+      page.cleanup();
+    }
+  } finally {
+    await task.destroy();
   }
-  busy = false; render(); toast('Documents are ready for your review.');
+}
+function fileName(ext) {
+  return (
+    (resume.personal.name || 'My resume')
+      .replace(/[^\p{L}\p{N} -]/gu, '')
+      .trim()
+      .replace(/\s+/g, '-') +
+    '-Resume.' +
+    ext
+  );
+}
+async function uploadFiles(files) {
+  if (busy) {
+    toast('Please wait for the current files to finish.');
+    return;
+  }
+  const list = [...files].slice(0, 20);
+  if (files.length > 20) toast('Processing the first 20 files. You can add the rest afterward.');
+  if (!list.length) return;
+  if (list.reduce((sum, file) => sum + file.size, 0) > 75 * 1024 * 1024)
+    return toast('Choose a batch of files totaling 75 MB or less.');
+  busy = true;
+  uploadController = new AbortController();
+  busyMessage = 'Reading your documents locally…';
+  if (page === 'documents') render();
+  try {
+    const { parseFile } = await import('./parser.js');
+    for (let i = 0; i < list.length && !uploadController.signal.aborted; i++) {
+      busyMessage = `Reading ${i + 1} of ${list.length}: ${list[i].name}`;
+      if (page === 'documents') render();
+      try {
+        reviews.push(await parseFile(list[i], { signal: uploadController.signal }));
+      } catch (err) {
+        if (err.name === 'AbortError') break;
+        reviews.push({ id: crypto.randomUUID(), fileName: list[i].name, error: err.message });
+      }
+    }
+    toast(
+      uploadController.signal.aborted
+        ? 'Reading cancelled. Completed documents are still available.'
+        : 'Documents are ready for your review.',
+    );
+  } catch {
+    toast('The document reader could not load. Reload the page and try again.');
+  } finally {
+    busy = false;
+    uploadController = null;
+    if (page === 'documents') render();
+  }
 }
 async function uploadPhoto(file) {
   if (!file) return;
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return toast('Choose a JPG, PNG, or WebP image.');
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type))
+    return toast('Choose a JPG, PNG, or WebP image.');
   if (file.size > 8 * 1024 * 1024) return toast('Choose a photo smaller than 8 MB.');
-  try { const bitmap = await createImageBitmap(file); const canvas = document.createElement('canvas'); canvas.width = canvas.height = 360; const context = canvas.getContext('2d'); const s = Math.min(bitmap.width, bitmap.height); context.drawImage(bitmap, (bitmap.width-s)/2, (bitmap.height-s)/2, s, s, 0, 0, 360, 360); bitmap.close(); snapshot(); resume.personal.photo = canvas.toDataURL('image/png'); resume.style.photo = true; persist(); render(); toast('Photo added. Cropped to a centered square.'); } catch { toast('This image could not be opened. Try another image.'); }
-}
-document.addEventListener('click', async event => {
-  const button = event.target.closest('[data-action]'); if (!button || button.disabled) return;
-  const { action, id, key } = button.dataset;
-  if (['home','templates','details','documents','editor'].includes(action)) return navigate(action);
-  if (action === 'how' || action === 'privacy' || action === 'explore') { if (page !== 'home') navigate('home'); document.getElementById(action === 'explore' ? 'collection' : action)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); }
-  else if (action === 'privacy-info') modal(`<div class="modal-icon">${icon('shield')}</div><h2>Private, by design.</h2><p>Certificate text extraction and document generation run on your device. Your files and resume content are never sent to a processing API or AI model.</p><p>Your draft, including your photo, is saved in this browser’s local storage. Other people using the same browser profile can access it. Source documents are held only in this tab and disappear when you reload.</p><p>Hosting delivers the website files and may log ordinary page requests. Downloaded documents belong to you. Use “Start a fresh resume” in the editor to clear the stored draft.</p>`);
-  else if (action === 'category') { category = id; render(); }
-  else if (action === 'select-template') { snapshot(); chooseTemplate(resume, id); persist(); navigate(saved && resume.personal.name ? 'editor' : 'details'); }
-  else if (action === 'editor-tab') { activeTab = id; render(); }
-  else if (action === 'edit-section') { activeSection = id; rerenderPanel(); }
-  else if (action === 'add-entry') { snapshot(); resume[key].push(entry(key)); rerenderPanel(); }
-  else if (action === 'delete-entry') { snapshot(); resume[key].splice(Number(button.dataset.index), 1); rerenderPanel(); toast('Entry removed. Use Undo to restore it.'); }
-  else if (action === 'move-entry' || action === 'move-section') { snapshot(); const list = action === 'move-section' ? resume.order : resume[key]; const i = +button.dataset.index, j = i + Number(button.dataset.direction); if (j >= 0 && j < list.length) [list[i],list[j]] = [list[j],list[i]]; rerenderPanel(); }
-  else if (action === 'remove-photo') { snapshot(); resume.personal.photo = ''; persist(); render(); }
-  else if (action === 'color') { snapshot(); resume.style.accent = id; rerenderPanel(); }
-  else if (action === 'undo') { if (undoStack.length) { resume = JSON.parse(undoStack.pop()); persist(); render(); toast('Last change undone.'); } else toast('No previous changes in this session.'); }
-  else if (action === 'manual-certificate') { reviews.push({ ...analyzeText(''), id: crypto.randomUUID(), fileName: 'Manual certificate' }); render(); }
-  else if (action === 'dismiss-review') { const d = reviews.find(x => x.id === id); if (d?.fileUrl) URL.revokeObjectURL(d.fileUrl); if (d?.imageUrl) URL.revokeObjectURL(d.imageUrl); reviews = reviews.filter(x => x.id !== id); render(); }
-  else if (action === 'reanalyze') { const i = reviews.findIndex(x => x.id === id); reviews[i] = { ...reviews[i], ...analyzeText(reviews[i].raw, reviews[i].fileName) }; render(); toast('Text analyzed. Review the suggested fields.'); }
-  else if (action === 'another-course') { const d = reviews.find(x => x.id === id); reviews.push({ ...d, id: crypto.randomUUID(), added: false, title: '', description: '', credential: '', skills: d.skills.map(s => ({ ...s, selected: false })) }); render(); }
-  else if (action === 'accept-review') {
-    const d = reviews.find(x => x.id === id); if (!d.title.trim()) { toast('Enter a course or certification name first.'); return $(`#review-${id}-title`)?.focus(); }
-    if (resume.certificates.some(c => certificateKey(c) === certificateKey(d))) return toast('This certificate is already in your resume. Edit it in the editor.');
-    snapshot(); resume.certificates.push({ ...entry('certificates'), title: d.title.trim(), issuer: d.issuer.trim(), date: d.date.trim(), credential: d.credential.trim(), url: d.url.trim(), description: d.description.trim() });
-    const selected = d.skills.filter(s => s.selected).map(s => s.name); const existing = resume.skills.split(/[,\n]/).map(s => s.trim()).filter(Boolean); selected.forEach(s => { if (!existing.some(v => v.toLowerCase() === s.toLowerCase())) existing.push(s); }); resume.skills = existing.join(', '); d.added = true; persist(); render(); toast('Certificate added. You can edit every detail in the editor.');
+  try {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 360;
+    const context = canvas.getContext('2d');
+    const s = Math.min(bitmap.width, bitmap.height);
+    context.drawImage(
+      bitmap,
+      (bitmap.width - s) / 2,
+      (bitmap.height - s) / 2,
+      s,
+      s,
+      0,
+      0,
+      360,
+      360,
+    );
+    bitmap.close();
+    snapshot();
+    resume.personal.photo = canvas.toDataURL('image/png');
+    resume.style.photo = true;
+    persist();
+    render();
+    toast('Photo added. Cropped to a centered square.');
+  } catch {
+    toast('This image could not be opened. Try another image.');
   }
-  else if (action === 'export') showExport();
+}
+document.addEventListener('click', async (event) => {
+  const button = event.target.closest('[data-action]');
+  if (!button || button.disabled) return;
+  const { action, id, key } = button.dataset;
+  if (['home', 'templates', 'details', 'documents', 'editor'].includes(action))
+    return navigate(action);
+  if (action === 'how' || action === 'privacy' || action === 'explore') {
+    if (page !== 'home') navigate('home');
+    document.getElementById(action === 'explore' ? 'collection' : action)?.scrollIntoView({
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
+    });
+  } else if (action === 'privacy-info')
+    modal(
+      `<div class="modal-icon">${icon('shield')}</div><h2>Private, by design.</h2><p>Certificate text extraction and document generation run on your device. Your files and resume content are never sent to a processing API or AI model.</p><p>Your draft, including your photo, is saved in this browser’s local storage. Other people using the same browser profile can access it. Source documents are held only in this tab and disappear when you reload.</p><p>Hosting delivers the website files and may log ordinary page requests. Downloaded documents belong to you. Use “Start a fresh resume” in the editor to clear the stored draft.</p>`,
+    );
+  else if (action === 'category') {
+    category = id;
+    render();
+  } else if (action === 'select-template') {
+    snapshot();
+    chooseTemplate(resume, id);
+    persist();
+    navigate(saved && resume.personal.name ? 'editor' : 'details');
+  } else if (action === 'editor-tab') {
+    activeTab = id;
+    render();
+    $(`#tab-${id}`)?.focus();
+  } else if (action === 'edit-section') {
+    activeSection = id;
+    rerenderPanel();
+  } else if (action === 'add-entry') {
+    if (resume[key].length >= 100) return toast('This section supports up to 100 entries.');
+    snapshot();
+    resume[key].push(entry(key));
+    rerenderPanel();
+  } else if (action === 'delete-entry') {
+    snapshot();
+    resume[key].splice(Number(button.dataset.index), 1);
+    rerenderPanel();
+    toast('Entry removed. Use Undo to restore it.');
+  } else if (action === 'move-entry' || action === 'move-section') {
+    snapshot();
+    const list = action === 'move-section' ? resume.order : resume[key];
+    const i = +button.dataset.index,
+      j = i + Number(button.dataset.direction);
+    if (j >= 0 && j < list.length) [list[i], list[j]] = [list[j], list[i]];
+    rerenderPanel();
+  } else if (action === 'remove-photo') {
+    snapshot();
+    resume.personal.photo = '';
+    persist();
+    render();
+  } else if (action === 'color') {
+    snapshot();
+    resume.style.accent = id;
+    rerenderPanel();
+  } else if (action === 'undo') {
+    if (undoStack.length) {
+      resume = JSON.parse(undoStack.pop());
+      persist();
+      render();
+      toast('Last change undone.');
+    } else toast('No previous changes in this session.');
+  } else if (action === 'manual-certificate') {
+    reviews.push({ ...analyzeText(''), id: crypto.randomUUID(), fileName: 'Manual certificate' });
+    render();
+  } else if (action === 'dismiss-review') {
+    const d = reviews.find((x) => x.id === id);
+    reviews = reviews.filter((x) => x.id !== id);
+    for (const url of new Set([d?.fileUrl, d?.imageUrl].filter(Boolean)))
+      if (!reviews.some((x) => x.fileUrl === url || x.imageUrl === url)) URL.revokeObjectURL(url);
+    render();
+  } else if (action === 'cancel-upload') uploadController?.abort();
+  else if (action === 'backup') {
+    const { downloadBlob } = await import('./export.js');
+    downloadBlob(
+      new Blob([serializeBackup(resume)], { type: 'application/json' }),
+      fileName('folio.json'),
+    );
+    toast('Backup downloaded. It includes your details and photo; store it privately.');
+  } else if (action === 'confirm-import') {
+    if (!pendingImport) return;
+    snapshot();
+    resume = pendingImport;
+    pendingImport = null;
+    document.querySelector('dialog')?.close();
+    persist();
+    render();
+    toast('Backup restored. You can undo this change.');
+  } else if (action === 'keep-local') {
+    lastStored = localStorage.getItem(storageKey);
+    storageConflict = false;
+    persist();
+    rerenderPanel();
+  } else if (action === 'load-other') {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const latest = raw ? validateResume(JSON.parse(raw)) : freshResume();
+      snapshot();
+      resume = latest;
+      lastStored = raw;
+      storageConflict = false;
+      dirty = false;
+      saved = Boolean(raw);
+      clearTimeout(saveTimer);
+      render();
+    } catch {
+      toast(
+        'The other draft could not be read. Download a backup before choosing to keep this version.',
+      );
+    }
+  } else if (action === 'reanalyze') {
+    const i = reviews.findIndex((x) => x.id === id);
+    reviews[i] = { ...reviews[i], ...analyzeText(reviews[i].raw, reviews[i].fileName) };
+    render();
+    toast('Text analyzed. Review the suggested fields.');
+  } else if (action === 'another-course') {
+    const d = reviews.find((x) => x.id === id);
+    reviews.push({
+      ...d,
+      id: crypto.randomUUID(),
+      added: false,
+      title: '',
+      description: '',
+      credential: '',
+      skills: d.skills.map((s) => ({ ...s, selected: false })),
+    });
+    render();
+  } else if (action === 'accept-review') {
+    const d = reviews.find((x) => x.id === id);
+    if (resume.certificates.length >= 100)
+      return toast('Your resume supports up to 100 certificates.');
+    if (
+      ['title', 'issuer', 'date', 'credential', 'url'].some((k) => d[k].length > 2000) ||
+      d.description.length > 20000
+    )
+      return toast(
+        'One of the extracted fields is too long. Shorten it before adding this certificate.',
+      );
+    if (!d.title.trim()) {
+      toast('Enter a course or certification name first.');
+      return $(`#review-${id}-title`)?.focus();
+    }
+    if (resume.certificates.some((c) => certificateKey(c) === certificateKey(d)))
+      return toast('This certificate is already in your resume. Edit it in the editor.');
+    snapshot();
+    resume.certificates.push({
+      ...entry('certificates'),
+      title: d.title.trim(),
+      issuer: d.issuer.trim(),
+      date: d.date.trim(),
+      credential: d.credential.trim(),
+      url: d.url.trim(),
+      description: d.description.trim(),
+    });
+    const selected = d.skills.filter((s) => s.selected).map((s) => s.name);
+    const existing = resume.skills
+      .split(/[,\n]/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    selected.forEach((s) => {
+      if (!existing.some((v) => v.toLowerCase() === s.toLowerCase())) existing.push(s);
+    });
+    resume.skills = existing.join(', ');
+    d.added = true;
+    persist();
+    render();
+    toast('Certificate added. You can edit every detail in the editor.');
+  } else if (action === 'export') showExport();
   else if (action === 'download-pdf') await exportFile('pdf');
   else if (action === 'download-docx') await exportFile('docx');
   else if (action === 'preview-pdf') await exportFile('pdf', true);
   else if (action === 'close-modal') button.closest('dialog').close();
-  else if (action === 'sample') modal(`<h2>Try an example resume?</h2><p>This replaces your draft with clearly fictional example content. You can restore your draft with Undo during this session.</p>${btn('Load example content', 'confirm-sample')}`);
-  else if (action === 'confirm-sample') { snapshot(); const template = resume.template; resume = sampleResume(); resume.template = template; document.querySelector('dialog').close(); persist(); render(); toast('Example content loaded. Replace all example details before sending.'); }
-  else if (action === 'reset') modal(`<h2>A fresh page.</h2><p>This clears the draft saved in this browser. Download a copy first if you want to keep it.</p>${btn('Clear draft & start again', 'confirm-reset')}`);
-  else if (action === 'confirm-reset') { snapshot(); resume = freshResume(); reviews.forEach(d => { if(d.fileUrl) URL.revokeObjectURL(d.fileUrl); if(d.imageUrl) URL.revokeObjectURL(d.imageUrl); }); reviews = []; try { localStorage.removeItem(storageKey); } catch {} saved = false; document.querySelector('dialog').close(); navigate('templates'); toast('Draft cleared. Undo remains available until this tab closes.'); }
-  else if (action === 'back-to-edit') $('.editor-panel')?.scrollIntoView({ behavior: 'smooth' });
+  else if (action === 'sample')
+    modal(
+      `<h2>Try an example resume?</h2><p>This replaces your draft with clearly fictional example content. You can restore your draft with Undo during this session.</p>${btn('Load example content', 'confirm-sample')}`,
+    );
+  else if (action === 'confirm-sample') {
+    snapshot();
+    const template = resume.template;
+    resume = sampleResume();
+    resume.template = template;
+    document.querySelector('dialog').close();
+    persist();
+    render();
+    toast('Example content loaded. Replace all example details before sending.');
+  } else if (action === 'reset')
+    modal(
+      `<h2>A fresh page.</h2><p>This clears the draft saved in this browser. Download a copy first if you want to keep it.</p>${btn('Clear draft & start again', 'confirm-reset')}`,
+    );
+  else if (action === 'confirm-reset') {
+    snapshot();
+    clearTimeout(saveTimer);
+    uploadController?.abort();
+    dirty = false;
+    resume = freshResume();
+    reviews.forEach((d) => {
+      if (d.fileUrl) URL.revokeObjectURL(d.fileUrl);
+      if (d.imageUrl) URL.revokeObjectURL(d.imageUrl);
+    });
+    reviews = [];
+    try {
+      localStorage.removeItem(storageKey);
+      lastStored = null;
+      storageConflict = false;
+    } catch {
+      storageError = true;
+      toast('Browser storage could not be cleared.');
+    }
+    saved = false;
+    document.querySelector('dialog').close();
+    navigate('templates');
+    toast('Draft cleared. Undo remains available until this tab closes.');
+  } else if (action === 'back-to-edit') $('.editor-panel')?.scrollIntoView({ behavior: 'smooth' });
 });
-document.addEventListener('focusin', event => { if (event.target.matches('[data-path]')) snapshot(); });
+document.addEventListener('focusin', (event) => {
+  if (event.target.matches('[data-path]')) snapshot();
+});
 function fieldChanged(event) {
   const el = event.target;
-  if (el.dataset.path) { const path = el.dataset.path.split('.'); let obj = resume; for (const k of path.slice(0,-1)) obj = obj[k]; obj[path.at(-1)] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? Number(el.value) : el.value; if (el.id === 'font-size') $('#size-output').textContent = `${el.value} pt`; if (el.id === 'line-spacing') $('#spacing-output').textContent = el.value; updatePreview(); }
-  if (el.dataset.reviewField) { const d = reviews.find(x => x.id === el.dataset.reviewId); if(d) d[el.dataset.reviewField] = el.value; }
-  if (el.dataset.skill !== undefined) { const d = reviews.find(x => x.id === el.dataset.reviewId); if(d) d.skills[+el.dataset.skill].selected = el.checked; }
-  if (el.dataset.sectionVisible) { snapshot(); const k = el.dataset.sectionVisible; resume.hidden = el.checked ? resume.hidden.filter(x => x !== k) : [...new Set([...resume.hidden,k])]; updatePreview(); }
-  if (el.id === 'template-search') { search = el.value; $('#gallery-results').innerHTML = galleryCards(); resizeMiniatures(); }
+  if (el.dataset.path) {
+    const path = el.dataset.path.split('.');
+    let obj = resume;
+    for (const k of path.slice(0, -1)) obj = obj[k];
+    obj[path.at(-1)] =
+      el.type === 'checkbox' ? el.checked : el.type === 'range' ? Number(el.value) : el.value;
+    if (el.id === 'font-size') $('#size-output').textContent = `${el.value} pt`;
+    if (el.id === 'line-spacing') $('#spacing-output').textContent = el.value;
+    updatePreview();
+  }
+  if (el.dataset.reviewField) {
+    const d = reviews.find((x) => x.id === el.dataset.reviewId);
+    if (d) d[el.dataset.reviewField] = el.value;
+  }
+  if (el.dataset.skill !== undefined) {
+    const d = reviews.find((x) => x.id === el.dataset.reviewId);
+    if (d) d.skills[+el.dataset.skill].selected = el.checked;
+  }
+  if (el.dataset.sectionVisible) {
+    snapshot();
+    const k = el.dataset.sectionVisible;
+    resume.hidden = el.checked
+      ? resume.hidden.filter((x) => x !== k)
+      : [...new Set([...resume.hidden, k])];
+    updatePreview();
+  }
+  if (el.id === 'template-search') {
+    search = el.value;
+    $('#gallery-results').innerHTML = galleryCards();
+    resizeMiniatures();
+  }
 }
 document.addEventListener('input', fieldChanged);
-document.addEventListener('change', event => { const el = event.target; if (el.id === 'photo-filter') { photoFilter = el.checked; $('#gallery-results').innerHTML = galleryCards(); resizeMiniatures(); } if (el.id === 'certificate-upload') uploadFiles(el.files); if (el.id === 'photo-upload') uploadPhoto(el.files[0]); });
-document.addEventListener('dragover', event => { if (event.target.closest('#drop-zone')) { event.preventDefault(); $('#drop-zone').classList.add('dragging'); } });
-document.addEventListener('dragleave', event => { if (event.target.id === 'drop-zone') event.target.classList.remove('dragging'); });
-document.addEventListener('drop', event => { if (event.target.closest('#drop-zone')) { event.preventDefault(); uploadFiles(event.dataTransfer.files); } });
-window.addEventListener('beforeunload', () => { try { if (saved) localStorage.setItem(storageKey, JSON.stringify(resume)); } catch {} });
+document.addEventListener('change', (event) => {
+  const el = event.target;
+  if (el.id === 'photo-filter') {
+    photoFilter = el.checked;
+    $('#gallery-results').innerHTML = galleryCards();
+    resizeMiniatures();
+  }
+  if (el.id === 'certificate-upload') uploadFiles(el.files);
+  if (el.id === 'photo-upload') uploadPhoto(el.files[0]);
+});
+document.addEventListener('dragover', (event) => {
+  if (event.target.closest('#drop-zone')) {
+    event.preventDefault();
+    $('#drop-zone').classList.add('dragging');
+  }
+});
+document.addEventListener('dragleave', (event) => {
+  if (event.target.id === 'drop-zone') event.target.classList.remove('dragging');
+});
+document.addEventListener('drop', (event) => {
+  if (event.target.closest('#drop-zone')) {
+    event.preventDefault();
+    uploadFiles(event.dataTransfer.files);
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if (
+    !event.target.matches('[role="tab"]') ||
+    !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)
+  )
+    return;
+  event.preventDefault();
+  const tabs = ['content', 'design', 'sections'];
+  const i = tabs.indexOf(activeTab);
+  activeTab =
+    event.key === 'Home'
+      ? tabs[0]
+      : event.key === 'End'
+        ? tabs[2]
+        : tabs[(i + (event.key === 'ArrowRight' ? 1 : 2)) % 3];
+  render();
+  $(`#tab-${activeTab}`)?.focus();
+});
+document.addEventListener('change', async (event) => {
+  if (event.target.id !== 'backup-import') return;
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    if (file.size > MAX_BACKUP_BYTES) throw new Error('Choose a backup smaller than 4 MB.');
+    pendingImport = parseBackup(await file.text());
+    modal(
+      `<h2>Restore this resume?</h2><p>Replace this draft with the backup for <strong>${e(pendingImport.personal.name || 'an unnamed resume')}</strong>? Download a backup of your current draft first if you need it. Undo is available during this session.</p>${btn('Restore backup', 'confirm-import')}`,
+    );
+  } catch (error) {
+    pendingImport = null;
+    toast(error.message);
+  } finally {
+    event.target.value = '';
+  }
+});
+window.addEventListener('storage', (event) => {
+  if (event.key !== storageKey || event.newValue === lastStored) return;
+  storageConflict = true;
+  clearTimeout(saveTimer);
+  updateSaveLabel();
+  toast('This draft changed in another tab. Open Sections to choose which version to keep.');
+  if (page === 'editor' && activeTab === 'sections') rerenderPanel();
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) flushSave();
+});
+window.addEventListener('pagehide', flushSave);
+window.addEventListener('beforeunload', flushSave);
 render();

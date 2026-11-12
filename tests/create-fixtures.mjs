@@ -4,8 +4,28 @@ import fonts from 'pdfmake/build/vfs_fonts.js';
 import { Document, Packer, Paragraph } from 'docx';
 await mkdir('test-output', { recursive: true });
 pdfMake.vfs = fonts.pdfMake?.vfs || fonts;
-const text = 'Certificate of Completion\nAwarded to: Alex Morgan\nCourse: Python for Data Analysis\nIssued by: Example University\nCompletion date: 12 November 2026\nCredential ID: DEMO-001\nSkills: Python, SQL, Microsoft Excel\nhttps://example.org/verify/DEMO-001';
+const text =
+  'Certificate of Completion\nAwarded to: Alex Morgan\nCourse: Python for Data Analysis\nIssued by: Example University\nCompletion date: 12 November 2026\nCredential ID: DEMO-001\nSkills: Python, SQL, Microsoft Excel\nhttps://example.org/verify/DEMO-001';
 await writeFile('test-output/certificate.txt', text);
-const pdf = await new Promise(resolve => pdfMake.createPdf({ content: text.split('\n').map(text => ({text, margin:[0,0,0,12]})) }).getBuffer(resolve));
+const pdf = await new Promise((resolve) =>
+  pdfMake
+    .createPdf({ content: text.split('\n').map((text) => ({ text, margin: [0, 0, 0, 12] })) })
+    .getBuffer(resolve),
+);
 await writeFile('test-output/certificate.pdf', pdf);
-await writeFile('test-output/certificate.docx', await Packer.toBuffer(new Document({ sections: [{ children: text.replace('Python for Data Analysis','SQL Foundations').replace('DEMO-001','DEMO-002').split('\n').map(text => new Paragraph(text)) }] })));
+await writeFile(
+  'test-output/certificate.docx',
+  await Packer.toBuffer(
+    new Document({
+      sections: [
+        {
+          children: text
+            .replace('Python for Data Analysis', 'SQL Foundations')
+            .replace('DEMO-001', 'DEMO-002')
+            .split('\n')
+            .map((text) => new Paragraph(text)),
+        },
+      ],
+    }),
+  ),
+);

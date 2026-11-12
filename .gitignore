@@ -3,3 +3,11 @@ dist/
 .local/
 *.tar.gz
 test-output/
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+.DS_Store
+Thumbs.db
+*.folio.json
