@@ -15,6 +15,7 @@ import {
 import { resumeHtml } from './resume.js';
 import { analyzeText } from './rules.js';
 import { validateResume, serializeBackup, parseBackup, MAX_BACKUP_BYTES } from './draft.js';
+import { importResumeText } from './resume-import.js';
 const $ = (s) => document.querySelector(s);
 const icons = {
   arrow: '<path d="M4 12h15m-6-6 6 6-6 6"/>',
@@ -62,7 +63,7 @@ try {
 } catch {
   storageError = true;
 }
-let page = ['templates', 'details', 'documents', 'editor'].includes(location.hash.slice(1))
+let page = ['start', 'templates', 'details', 'documents', 'editor'].includes(location.hash.slice(1))
   ? location.hash.slice(1)
   : 'home';
 let category = 'All templates',
@@ -78,6 +79,12 @@ let category = 'All templates',
   previewUrl = '';
 const demo = sampleResume();
 let saveTimer;
+let resumeImport = null,
+  importMode = 'template',
+  importError = '',
+  originalModel = null,
+  disposeOriginal = null;
+
 function flushSave() {
   if (!dirty) return;
   try {
@@ -129,6 +136,8 @@ function toast(text) {
   t.timeout = setTimeout(() => t.classList.remove('visible'), 4500);
 }
 function navigate(next) {
+  disposeOriginal?.();
+  disposeOriginal = null;
   page = next;
   history.pushState({}, '', next === 'home' ? location.pathname : '#' + next);
   render();
@@ -136,7 +145,14 @@ function navigate(next) {
   $('#main')?.focus({ preventScroll: true });
 }
 window.addEventListener('popstate', () => {
-  page = ['templates', 'details', 'documents', 'editor'].includes(location.hash.slice(1))
+  page = [
+    'start',
+    'templates',
+    'details',
+    'documents',
+    'editor',
+    ...(originalModel ? ['original'] : []),
+  ].includes(location.hash.slice(1))
     ? location.hash.slice(1)
     : 'home';
   render();
@@ -145,27 +161,61 @@ const btn = (text, action, cls = 'primary', extra = '', symbol = '') =>
   `<button class="button ${cls}" data-action="${action}" ${extra}>${text}${symbol ? icon(symbol) : ''}</button>`;
 const brand = `<button class="brand" data-action="home" aria-label="Folio home"><span class="brand-symbol">f.</span>folio</button>`;
 function header() {
-  return `<header class="site-header"><div class="nav-inner">${brand}<nav aria-label="Main navigation"><button data-action="templates">Templates</button><button data-action="how">How it works</button><button data-action="privacy">Made for you</button></nav><div class="nav-end">${saved ? '<button class="text-button resume-link" data-action="editor">My resume</button>' : ''}${btn('Create my resume', 'templates', 'small primary', '', 'arrow')}</div></div></header>`;
+  return `<header class="site-header"><div class="nav-inner">${brand}<nav aria-label="Main navigation"><button data-action="templates">Templates</button><button data-action="how">How it works</button><button data-action="privacy">Made for you</button></nav><div class="nav-end">${saved ? '<button class="text-button resume-link" data-action="editor">My resume</button>' : ''}${btn('Get started', 'start', 'small primary', '', 'arrow')}</div></div></header>`;
 }
 function steps(current) {
-  return `<nav class="steps" aria-label="Resume progress">${[
-    ['templates', 'Template'],
-    ['details', 'Your details'],
-    ['documents', 'Certificates'],
-    ['editor', 'Editor'],
-  ]
-    .map(
-      ([k, v], i) =>
-        `<button data-action="${k}" class="${k === current ? 'current' : ''}" ${k === current ? 'aria-current="step"' : ''}><span>${['templates', 'details', 'documents', 'editor'].indexOf(current) > i ? icon('check') : i + 1}</span>${v}</button>${i < 3 ? '<i></i>' : ''}`,
-    )
-    .join('')}</nav>`;
+  return `<nav class="steps" aria-label="Resume progress"><button data-action="start"><span>1</span>Start</button><i></i><button data-action="editor" ${current === 'editor' ? 'aria-current="step"' : ''}><span>2</span>Edit</button><i></i><button data-action="export"><span>3</span>Download</button></nav>`;
+}
+function start() {
+  return `${header()}<main id="main" class="start-page"><div class="page-intro"><div class="eyebrow">A SHORTER PATH TO YOUR NEXT CHAPTER</div><h1>Start with what you have.</h1><p>Bring an existing resume, or start fresh. Edit and download in one place.</p></div><section class="start-card"><h2>Upload your old resume</h2><fieldset class="import-options"><legend>What would you like to do?</legend><label><input type="radio" name="import-mode" value="template" ${importMode === 'template' ? 'checked' : ''}><span><strong>Use a new template</strong><small>Extract your details into an editable resume.</small></span></label><label><input type="radio" name="import-mode" value="original" ${importMode === 'original' ? 'checked' : ''}><span><strong>Keep the original layout</strong><small>Edit Word text in its original structure, or edit a PDF page visually.</small></span></label></fieldset><label class="button primary upload-label">Choose your resume<input type="file" id="resume-upload" accept=".pdf,.docx,.txt" class="visually-hidden" ${busy ? 'disabled' : ''}></label><p class="muted">PDF, DOCX or TXT · up to 15 MB · processed on this device</p>${busy ? '<p role="status">Reading your resume…</p>' : ''}${importError ? `<p role="alert" class="error-text">${e(importError)}</p>` : ''}<details class="paste-resume"><summary>Or paste resume text</summary><label class="field">Resume text<textarea id="resume-paste" rows="8" maxlength="200000" placeholder="Paste your existing resume here"></textarea></label>${btn('Use pasted text', 'parse-pasted', 'secondary')}</details></section><div class="start-alternatives">${btn(saved ? 'Continue my draft' : 'Start from a blank page', 'editor', 'secondary')}${btn('Browse templates', 'templates', 'secondary')}${originalModel ? btn('Continue original document', 'original', 'secondary') : ''}</div><p class="optional-note">Certificates, photos, and extra sections are optional. Add them when you need them.</p></main>`;
+}
+function showResumeImport() {
+  const r = resumeImport.resume;
+  modal(
+    `<h2>Your resume, ready to review.</h2><p>${e(r.personal.name || 'Name needs review')} · ${e(r.personal.email || 'Email needs review')}</p><p>Found ${['experience', 'education', 'projects', 'certificates'].reduce((n, k) => n + r[k].length, 0)} grouped entries. Nothing is added until you continue.</p><ul>${resumeImport.notices.map((n) => `<li>${e(n)}</li>`).join('')}</ul><details><summary>Extracted source text</summary><pre class="source-text">${e(resumeImport.raw)}</pre></details><p>This replaces the current draft. Undo can restore it during this session.</p>${btn('Use this resume', 'accept-resume')}`,
+  );
+}
+async function uploadResume(file) {
+  if (!file || busy) return;
+  busy = true;
+  importError = '';
+  render();
+  try {
+    if (importMode === 'original') {
+      const { openOriginal } = await import('./original-editor.js');
+      const next = await openOriginal(file);
+      originalModel?.pages?.forEach((p) => {
+        p.canvas.width = p.canvas.height = 0;
+      });
+      originalModel = next;
+      navigate('original');
+    } else {
+      if (!/\.(pdf|docx|txt)$/i.test(file.name))
+        throw new Error('Choose a PDF, DOCX, or TXT resume.');
+      const { parseFile } = await import('./parser.js');
+      const result = await parseFile(file);
+      try {
+        resumeImport = importResumeText(result.raw);
+      } finally {
+        for (const url of new Set([result.fileUrl, result.imageUrl].filter(Boolean)))
+          URL.revokeObjectURL(url);
+      }
+      showResumeImport();
+    }
+  } catch (error) {
+    importError = error.message;
+    toast(error.message);
+  } finally {
+    busy = false;
+    if (page === 'start') render();
+  }
 }
 function miniature(t, custom = demo) {
   return `<div class="mini-frame" aria-hidden="true">${resumeHtml({ ...custom, template: t.id, style: { ...custom.style, accent: '', font: 'template' } }, { miniature: true })}</div>`;
 }
 function home() {
   return `${header()}<main id="main">
-    <section class="hero"><div class="eyebrow"><span class="live-dot"></span> A LITTLE CLARITY. A NEW CHAPTER.</div><h1>Your experience.<br><span>Beautifully presented.</span></h1><p>A resume that feels like you. Thoughtful templates, your achievements,<br class="desktop"> and all the freedom to make it your own.</p><div class="hero-actions">${btn('Create my resume', 'templates', 'primary large', '', 'arrow')}<button class="text-button" data-action="explore">Explore the templates ${icon('chevron')}</button></div><div class="hero-note">No resume account<span>·</span>Private by design<span>·</span>Yours to keep</div>
+    <section class="hero"><div class="eyebrow"><span class="live-dot"></span> A LITTLE CLARITY. A NEW CHAPTER.</div><h1>Your experience.<br><span>Beautifully presented.</span></h1><p>A resume that feels like you. Thoughtful templates, your achievements,<br class="desktop"> and all the freedom to make it your own.</p><div class="hero-actions">${btn('Get started', 'start', 'primary large', '', 'arrow')}<button class="text-button" data-action="explore">Explore the templates ${icon('chevron')}</button></div><div class="hero-note">No resume account<span>·</span>Private by design<span>·</span>Yours to keep</div>
       <div class="showcase"><div class="showcase-note note-left"><span class="small-star">✳</span><span>Your story.<br>A considered first impression.</span></div><div class="showcase-paper paper-left">${miniature(getTemplate('editorial-2'))}<div class="paper-tag">Editorial <span>01</span></div></div><div class="showcase-paper paper-center">${miniature(getTemplate('essential-0'))}<div class="paper-tag">Essential <span>THE QUIET CLASSIC</span></div></div><div class="showcase-paper paper-right">${miniature(getTemplate('column-1'))}<div class="paper-tag">Column <span>03</span></div></div><div class="showcase-note note-right">${icon('edit')}<span>Every detail.<br>Entirely yours.</span></div><div class="floating-pill">${icon('check')} Designed to let you stand out.</div></div>
     </section>
     <div class="benefit-strip"><span>${icon('grid')}60 considered templates</span><span>${icon('file')}PDF & Word downloads</span><span>${icon('shield')}Your files stay on your device</span><span>${icon('edit')}Editable, down to the last word</span></div>
@@ -182,14 +232,14 @@ function home() {
     <section class="how-section section" id="how"><div class="eyebrow">FROM A BLANK PAGE TO WHAT’S NEXT</div><h2>Less formatting.<br>More possibility.</h2><div class="how-grid">${[
       [
         '01',
-        'Find your fit.',
-        'Choose a template that suits your experience. Refine the typography, color, and spacing.',
+        'Bring what you have.',
+        'Import an old resume, keep its layout, or start with a blank page.',
         'grid',
       ],
       [
         '02',
-        'Bring your story.',
-        'Add your details and upload certificates. Review the extracted facts, then add what matters.',
+        'Make it yours.',
+        'Edit one section at a time. Templates and certificates are there when you need them.',
         'upload',
       ],
       [
@@ -205,7 +255,7 @@ function home() {
       )
       .join('')}</div></section>
     <section class="privacy-section section" id="privacy"><div class="privacy-mark">${icon('shield')}</div><div><div class="eyebrow">PERSONAL MEANS PERSONAL</div><h2>Your career. Your data.</h2><p>Your documents are processed right in your browser. No AI models. No document uploads to a server. Your draft stays on this device, and you decide what makes the final cut.</p><button class="text-button" data-action="privacy-info">A closer look at privacy ${icon('arrow')}</button></div></section>
-    <section class="closing section"><p>A small step toward something bigger.</p><h2>Let’s tell your story.</h2>${btn('Create my resume', 'templates', 'primary large', '', 'arrow')}</section>
+    <section class="closing section"><p>A small step toward something bigger.</p><h2>Let’s tell your story.</h2>${btn('Get started', 'start', 'primary large', '', 'arrow')}</section>
   </main><footer><div>${brand}<span>A thoughtful start to what’s next.</span></div><div><button data-action="privacy-info">Privacy</button><span>Made with intention.</span></div></footer>`;
 }
 function galleryCards() {
@@ -310,7 +360,7 @@ function entryForm(key, x, i) {
 }
 function contentPanel() {
   const key = activeSection;
-  return `<div class="section-selector">${[['personal', 'Personal details'], ...resume.order.map((k) => [k, resume.headings[k] || defaultHeadings[k]])].map(([k, title]) => `<button class="${key === k ? 'active' : ''}" data-action="edit-section" data-id="${k}">${e(title)}${resume.hidden.includes(k) ? '<span>Hidden</span>' : ''}</button>`).join('')}</div><div class="editor-fields"><div class="panel-heading"><h2>${key === 'personal' ? 'The introduction' : e(defaultHeadings[key])}</h2><p>${key === 'personal' ? 'The details that make this yours.' : 'Your words. Your experience. Every detail editable.'}</p></div>${key === 'personal' ? personalForm() : `${field('Section heading', `headings.${key}`, resume.headings[key])}${['experience', 'education', 'projects', 'certificates'].includes(key) ? `${resume[key].map((x, i) => entryForm(key, x, i)).join('')}${btn('Add ' + { experience: 'experience', education: 'education', projects: 'project', certificates: 'certificate' }[key], 'add-entry', 'secondary full-width', `data-key="${key}"`, 'plus')}${key === 'certificates' ? '<button class="text-button upload-from-editor" data-action="documents">Import from a certificate →</button>' : ''}` : field('Content', key, resume[key], { area: true, rows: 10, placeholder: key === 'skills' ? 'e.g. Python, Data analysis, Project management' : 'Write in your own words…', hint: key === 'skills' ? 'Separate skills with commas or line breaks.' : 'Line breaks are preserved in your resume.' })}`}</div>`;
+  return `<div class="section-picker"><label for="section-picker">Edit a section</label><select id="section-picker">${[['personal', 'Personal details'], ...resume.order.map((k) => [k, resume.headings[k] || defaultHeadings[k]])].map(([k, title]) => `<option value="${k}" ${key === k ? 'selected' : ''}>${e(title)}${resume.hidden.includes(k) ? ' (hidden)' : ''}</option>`).join('')}</select><button class="text-button" data-action="start">Import an existing resume</button></div><div class="editor-fields"><div class="panel-heading"><h2>${key === 'personal' ? 'The introduction' : e(defaultHeadings[key])}</h2><p>${key === 'personal' ? 'The details that make this yours.' : 'Your words. Your experience. Every detail editable.'}</p></div>${key === 'personal' ? personalForm() : `${field('Section heading', `headings.${key}`, resume.headings[key])}${['experience', 'education', 'projects', 'certificates'].includes(key) ? `${resume[key].map((x, i) => entryForm(key, x, i)).join('')}${btn('Add ' + { experience: 'experience', education: 'education', projects: 'project', certificates: 'certificate' }[key], 'add-entry', 'secondary full-width', `data-key="${key}"`, 'plus')}${key === 'certificates' ? '<button class="text-button upload-from-editor" data-action="documents">Import from a certificate →</button>' : ''}` : field('Content', key, resume[key], { area: true, rows: 10, placeholder: key === 'skills' ? 'e.g. Python, Data analysis, Project management' : 'Write in your own words…', hint: key === 'skills' ? 'Separate skills with commas or line breaks.' : 'Line breaks are preserved in your resume.' })}`}</div>`;
 }
 function designPanel() {
   const c = config(resume);
@@ -334,18 +384,34 @@ function editor() {
     )}</div><div id="editor-panel-content">${activeTab === 'content' ? contentPanel() : activeTab === 'design' ? designPanel() : sectionsPanel()}</div></aside><section class="editor-preview"><div class="preview-toolbar"><span><span class="live-dot"></span> Live preview</span><div><span>${getTemplate(resume.template).name}</span><button class="text-button" data-action="preview-pdf">${icon('eye')} Preview PDF</button></div></div><div class="preview-scroll"><div id="live-preview">${resumeHtml(resume)}</div><p class="preview-tip">Continuous preview · PDF export creates the final page breaks</p></div><button class="mobile-edit-button button secondary" data-action="back-to-edit">Back to editing ${icon('up')}</button></section></main>`;
 }
 function render() {
+  disposeOriginal?.();
+  disposeOriginal = null;
+  if (page === 'original' && originalModel) {
+    document.body.classList.add('in-editor');
+    document.title = 'Edit original resume — Folio';
+    import('./original-editor.js').then(({ mountOriginal }) => {
+      if (page !== 'original') return;
+      disposeOriginal = mountOriginal($('#app'), originalModel, {
+        close: () => navigate('start'),
+        toast,
+      });
+    });
+    return;
+  }
   document.body.classList.toggle('in-editor', page === 'editor');
   $('#app').innerHTML =
-    page === 'home'
-      ? home()
-      : page === 'templates'
-        ? gallery()
-        : page === 'details'
-          ? details()
-          : page === 'documents'
-            ? documents()
-            : editor();
-  document.title = `${{ home: 'Your next chapter', templates: 'Choose a template', details: 'Your details', documents: 'Review certificates', editor: 'Resume editor' }[page]} — Folio`;
+    page === 'start'
+      ? start()
+      : page === 'home'
+        ? home()
+        : page === 'templates'
+          ? gallery()
+          : page === 'details'
+            ? details()
+            : page === 'documents'
+              ? documents()
+              : editor();
+  document.title = `${{ start: 'Get started', home: 'Your next chapter', templates: 'Choose a template', details: 'Your details', documents: 'Review certificates', editor: 'Resume editor' }[page]} — Folio`;
   $('#main')?.setAttribute('tabindex', '-1');
   configureTabs();
   configureInputs();
@@ -613,9 +679,27 @@ document.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-action]');
   if (!button || button.disabled) return;
   const { action, id, key } = button.dataset;
-  if (['home', 'templates', 'details', 'documents', 'editor'].includes(action))
+  if (['home', 'start', 'original', 'templates', 'details', 'documents', 'editor'].includes(action))
     return navigate(action);
-  if (action === 'how' || action === 'privacy' || action === 'explore') {
+  if (action === 'parse-pasted') {
+    try {
+      resumeImport = importResumeText($('#resume-paste').value);
+      showResumeImport();
+    } catch (error) {
+      toast(error.message);
+    }
+  } else if (action === 'accept-resume') {
+    if (!resumeImport) return;
+    snapshot();
+    resume = resumeImport.resume;
+    resumeImport = null;
+    activeSection = 'personal';
+    activeTab = 'content';
+    document.querySelector('dialog')?.close();
+    persist();
+    navigate('editor');
+    toast('Resume imported. Review the details before downloading.');
+  } else if (action === 'how' || action === 'privacy' || action === 'explore') {
     if (page !== 'home') navigate('home');
     document.getElementById(action === 'explore' ? 'collection' : action)?.scrollIntoView({
       behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth',
@@ -631,7 +715,7 @@ document.addEventListener('click', async (event) => {
     snapshot();
     chooseTemplate(resume, id);
     persist();
-    navigate(saved && resume.personal.name ? 'editor' : 'details');
+    navigate('editor');
   } else if (action === 'editor-tab') {
     activeTab = id;
     render();
@@ -869,6 +953,12 @@ document.addEventListener('change', (event) => {
     $('#gallery-results').innerHTML = galleryCards();
     resizeMiniatures();
   }
+  if (el.name === 'import-mode') importMode = el.value;
+  if (el.id === 'resume-upload') uploadResume(el.files[0]);
+  if (el.id === 'section-picker') {
+    activeSection = el.value;
+    rerenderPanel();
+  }
   if (el.id === 'certificate-upload') uploadFiles(el.files);
   if (el.id === 'photo-upload') uploadPhoto(el.files[0]);
 });
@@ -934,5 +1024,11 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) flushSave();
 });
 window.addEventListener('pagehide', flushSave);
-window.addEventListener('beforeunload', flushSave);
+window.addEventListener('beforeunload', (event) => {
+  flushSave();
+  if (originalModel?.dirty) {
+    event.preventDefault();
+    event.returnValue = '';
+  }
+});
 render();

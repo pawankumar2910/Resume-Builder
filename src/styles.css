@@ -3076,3 +3076,192 @@ main:focus {
     border-color: #7d8e6c;
   }
 }
+/* Short entry flow and focused original-document editing. */
+.start-page {
+  max-width: 820px;
+  margin: auto;
+  padding: 24px 24px 80px;
+}
+.start-card {
+  background: white;
+  border: 1px solid #deded8;
+  border-radius: 24px;
+  padding: 32px;
+}
+.start-card h2 {
+  font-size: 24px;
+  letter-spacing: -0.03em;
+  margin-bottom: 24px;
+}
+.start-card > .muted {
+  margin: 16px 0;
+  font-size: 13px;
+}
+.import-options {
+  border: 0;
+  padding: 0;
+  margin: 0 0 24px;
+  display: grid;
+  gap: 12px;
+}
+.import-options legend {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.import-options label {
+  display: flex;
+  align-items: start;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #deded8;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.import-options label:has(:checked) {
+  border-color: #48544b;
+  background: #f5f6f3;
+}
+.import-options input {
+  margin-top: 5px;
+  accent-color: #364239;
+}
+.import-options strong,
+.import-options small {
+  display: block;
+}
+.import-options small {
+  color: #596158;
+  margin-top: 5px;
+  line-height: 1.5;
+}
+.start-alternatives {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin: 24px 0;
+}
+.paste-resume summary {
+  cursor: pointer;
+  padding: 12px 0;
+}
+.source-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 280px;
+  overflow: auto;
+  font-size: 13px;
+  padding: 16px;
+  background: #f4f4f0;
+}
+.modal ul {
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.7;
+  margin: 16px 0;
+}
+.section-picker {
+  display: grid;
+  gap: 10px;
+  padding: 20px 24px 0;
+}
+.section-picker label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.section-picker select,
+.original-controls select {
+  max-width: 100%;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #cccfc8;
+  border-radius: 9px;
+  background: white;
+  color: #222;
+}
+.editor-panel .form-grid {
+  grid-template-columns: 1fr;
+}
+.original-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  min-height: calc(100vh - 72px);
+}
+.original-controls {
+  padding: 28px;
+  background: #fafbf8;
+  border-right: 1px solid #deded8;
+}
+.original-controls h1 {
+  font-size: 28px;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  margin: 16px 0;
+}
+.original-controls p {
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+.original-controls textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #cccfc8;
+  border-radius: 8px;
+  font: inherit;
+}
+.original-controls .full-width {
+  margin-top: 20px;
+}
+.original-preview {
+  min-width: 0;
+  padding: 32px;
+  background: #e9ebe6;
+  overflow: auto;
+}
+.original-preview canvas {
+  display: block;
+  width: 100%;
+  max-width: 840px;
+  height: auto;
+  margin: auto;
+  box-shadow: 0 6px 30px #00000015;
+}
+.word-text-preview {
+  background: white;
+  max-width: 840px;
+  margin: auto;
+  padding: 36px;
+  line-height: 1.8;
+}
+.word-text-preview > p {
+  margin: 12px 0 28px;
+}
+.word-fragment {
+  display: block;
+  text-align: left;
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.word-fragment.selected {
+  background: #e9eee5;
+  outline: 1px solid #6a7d60;
+}
+@media (max-width: 760px) {
+  .original-layout {
+    grid-template-columns: 1fr;
+  }
+  .original-preview {
+    padding: 16px;
+  }
+  .start-card {
+    padding: 22px;
+  }
+  .editor-document-title {
+    max-width: 40%;
+    overflow-wrap: anywhere;
+  }
+}

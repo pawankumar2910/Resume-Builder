@@ -16,7 +16,11 @@ Open http://127.0.0.1:4173. Rebuild and reload after editing source files.
 
 ## Features
 
-- Landing page → 60 template presets → personal details → certificate review → live editor → PDF or DOCX.
+- Start → edit → download. Upload an old resume or open the editor directly; templates and certificates are optional.
+- Import PDF, DOCX, or pasted/plain text into a new template using local rules. Review contact details and recognized sections before replacing the draft; unclassified text is retained for editing and Undo restores the previous draft during the session.
+- Keep-layout mode edits DOCX text fragments inside the existing document package, preserving styles, tables, columns, images, and untouched parts. The browser shows a text reading view; inspect pagination in Word after download. Longer replacements may reflow.
+- Keep-layout PDF editing preserves the page artwork, supports text replacement, colors, placement, and new text boxes, and exports flattened image pages. It does **not** preserve searchable text, links, accessibility tags, or exact fonts for changed text. For searchable PDF or editable Word export, import into a Folio template instead.
+- A single section selector and one-column form keep the editor focused.
 - 12 layout families × 5 muted palettes. All presets support a photo; selected presets feature photo-friendly compositions.
 - Editable names, contact details, headings, summary, experience, education, projects, skills, certifications, languages, and additional information.
 - Add, remove, reorder, and hide sections or entries. Change fonts, color, text size, spacing, paper size, and photo visibility. Session undo.
@@ -33,6 +37,8 @@ Open http://127.0.0.1:4173. Rebuild and reload after editing source files.
 ## Accuracy and format boundaries
 
 Extraction is deterministic, not general document understanding. It recognizes labelled facts and a small set of completion phrases; ambiguous or missing fields are left for review. It does not authenticate certificates, infer proficiency, invent missing qualifications, or extract every arbitrary layout perfectly. Matching a provider name is only a suggestion and is marked as such.
+
+Old-resume import recognizes common English section headings (including spaced PDF headings) and contact details. It retains ambiguous roles, dates, and organizations together rather than inventing their relationship. Complex multi-column reading order requires review. Original-format source files and edits remain in tab memory; download before reload. PDF layout mode supports up to 10 pages and bounded canvas sizes. Rotated PDF text cannot be replaced; scans support added text boxes but require transcription for a new template. DOCX text inside unsupported drawing/object types may not appear in the text editor; those package parts remain unchanged.
 
 PDFs must contain selectable text. Scanned PDFs and images require manual transcription because this project deliberately does not include OCR/AI models. Limits: 15 MB per certificate, 75 PDF pages, 200,000 extracted characters, 20 files and 75 MB per batch, and 45 seconds per file. Word archives are checked against a 40 MB declared expanded-size limit before parsing. Photos: 8 MB, locally center-cropped and resized.
 
